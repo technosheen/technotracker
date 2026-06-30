@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist/server",
+    "rootDir": "./src",
+    "declaration": false,
+    "declarationMap": false,
+    "exactOptionalPropertyTypes": false
+  },
+  "include": [
+    "src/server.ts",
+    "src/plan-workday.ts"
+  ]
+}

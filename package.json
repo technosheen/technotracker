@@ -1,0 +1,55 @@
+{
+  "name": "technotracker",
+  "version": "0.1.0",
+  "description": "A stateless OpenAI MCP workday planner with an embedded MCP UI.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server/server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/technosheen/technotracker.git"
+  },
+  "homepage": "https://github.com/technosheen/technotracker#readme",
+  "keywords": [
+    "openai",
+    "mcp",
+    "mcp-app",
+    "workday",
+    "timesheet"
+  ],
+  "scripts": {
+    "build": "npm run build:widget && npm run build:server",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:widget": "vite build",
+    "dev": "npm run build:widget && tsx watch src/server.ts",
+    "start": "node dist/server/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.widget.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.1",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^4.1.9"
+  }
+}
