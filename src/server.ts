@@ -16,7 +16,7 @@ import { planExplicitWorkday } from "./plan-workday.js";
 const SERVER_VERSION = "0.1.0";
 const WIDGET_URI = "ui://technotracker/dashboard.html";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const widgetPath = path.resolve(__dirname, "..", "widget", "index.html");
+const widgetPath = path.resolve(process.cwd(), "dist", "widget", "index.html");
 
 const meetingSchema = z.object({
   id: z.string(),
