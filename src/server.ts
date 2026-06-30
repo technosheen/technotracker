@@ -11,58 +11,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import {
+  DEFAULT_TIMESHEET_CONFIGURATION,
+  JiraIssueSchema,
+  MailMessageSchema,
+  MeetingSchema,
+  TeamsMessageSchema,
+  TimesheetConfigurationSchema
+} from "./contracts.js";
 import { planExplicitWorkday } from "./plan-workday.js";
 
-const SERVER_VERSION = "0.1.0";
-const WIDGET_URI = "ui://technotracker/dashboard.html";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SERVER_VERSION = "0.2.0";
+const WIDGET_URI = "ui://technotracker/workday.html";
 const widgetPath = path.resolve(process.cwd(), "dist", "widget", "index.html");
-
-const meetingSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  start: z.string().datetime(),
-  end: z.string().datetime(),
-  showAs: z.literal("busy").default("busy"),
-  webUrl: z.string().url().optional()
-});
-
-const mailSchema = z.object({
-  id: z.string(),
-  subject: z.string(),
-  sender: z.string(),
-  preview: z.string(),
-  receivedAt: z.string().datetime(),
-  webUrl: z.string().url().optional()
-});
-
-const teamsSchema = z.object({
-  id: z.string(),
-  author: z.string(),
-  content: z.string(),
-  createdAt: z.string().datetime(),
-  webUrl: z.string().url().optional()
-});
-
-const jiraIssueSchema = z.object({
-  key: z.string().regex(/^[A-Z][A-Z0-9]+-\d+$/),
-  summary: z.string(),
-  description: z.string().default(""),
-  status: z.string(),
-  priority: z.enum([
-    "Highest",
-    "High",
-    "Medium",
-    "Low",
-    "Lowest",
-    "Unprioritized"
-  ]),
-  dueDate: z.string().date().nullable().default(null),
-  updatedAt: z.string().datetime(),
-  assignee: z.string().nullable().default(null),
-  mentionsCurrentUser: z.boolean().default(false),
-  blocked: z.boolean().default(false)
-});
 
 export function createPlannerMcpServer(): McpServer {
   const server = new McpServer({
@@ -72,11 +33,87 @@ export function createPlannerMcpServer(): McpServer {
 
   registerAppTool(
     server,
+    "show_technotracker_onboarding",
+    {
+      title: "Set up TechnoTracker",
+      description:
+        "Use this when the user wants to configure TechnoTracker, change their work tools, or define company timesheet rules. It opens an interactive onboarding form and never requests credentials.",
+      inputSchema: {
+        existingConfiguration: TimesheetConfigurationSchema.optional().describe(
+          "A previously saved TechnoTracker configuration from the conversation."
+        )
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      },
+      _meta: {
+        ui: { resourceUri: WIDGET_URI }
+      }
+    },
+    async ({ existingConfiguration }) => {
+      const configuration = TimesheetConfigurationSchema.parse(
+        existingConfiguration ?? DEFAULT_TIMESHEET_CONFIGURATION
+      );
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              "Use the embedded onboarding form to describe your work tools and company timesheet rules. Do not enter passwords, API keys, or access tokens."
+          }
+        ],
+        structuredContent: {
+          view: "onboarding" as const,
+          configuration
+        }
+      };
+    }
+  );
+
+  registerAppTool(
+    server,
+    "save_technotracker_configuration",
+    {
+      title: "Validate TechnoTracker configuration",
+      description:
+        "Validate a TechnoTracker onboarding configuration submitted from the embedded app. This stores no credentials and performs no external writes.",
+      inputSchema: {
+        configuration: TimesheetConfigurationSchema
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      },
+      _meta: {
+        ui: { visibility: ["app"] }
+      }
+    },
+    async ({ configuration }) => {
+      const validated = TimesheetConfigurationSchema.parse(configuration);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "TechnoTracker configuration validated."
+          }
+        ],
+        structuredContent: { configuration: validated }
+      };
+    }
+  );
+
+  registerAppTool(
+    server,
     "generate_workday_plan",
     {
       title: "Generate workday plan",
       description:
-        "Build a deterministic schedule and exactly eight-hour timesheet from Jira issues, meetings, unread mail, and Teams messages explicitly selected by the user or other approved ChatGPT apps. This tool is stateless and cannot retrieve private data or write to external systems.",
+        "Use this after onboarding and after gathering explicitly selected work context from the user's approved ChatGPT apps. It builds a deterministic meeting-safe schedule and a balanced timesheet using the user's company rules. It cannot retrieve private data or write to external systems.",
       inputSchema: {
         date: z
           .string()
@@ -84,21 +121,30 @@ export function createPlannerMcpServer(): McpServer {
           .optional()
           .describe("Planner date in YYYY-MM-DD format."),
         issues: z
-          .array(jiraIssueSchema)
+          .array(JiraIssueSchema)
           .default([])
-          .describe("Jira issues selected from the user's approved Jira app."),
+          .describe("Legacy Jira issues selected from the user's approved Jira app."),
+        workItems: z
+          .array(JiraIssueSchema)
+          .default([])
+          .describe(
+            "Normalized tasks or tickets selected from the user's approved Jira, Azure DevOps, Linear, Asana, ClickUp, Monday, Trello, GitHub, or Notion app."
+          ),
         meetings: z
-          .array(meetingSchema)
+          .array(MeetingSchema)
           .default([])
           .describe("Real meetings selected from the user's calendar."),
         mail: z
-          .array(mailSchema)
+          .array(MailMessageSchema)
           .default([])
           .describe("High-signal unread messages selected for planning."),
         teams: z
-          .array(teamsSchema)
+          .array(TeamsMessageSchema)
           .default([])
-          .describe("Teams messages selected for planning.")
+          .describe("Teams messages selected for planning."),
+        configuration: TimesheetConfigurationSchema.optional().describe(
+          "The user's validated TechnoTracker onboarding configuration. Use defaults only when the user has not onboarded."
+        )
       },
       annotations: {
         readOnlyHint: true,
@@ -109,24 +155,48 @@ export function createPlannerMcpServer(): McpServer {
         ui: { resourceUri: WIDGET_URI }
       }
     },
-    async ({ date, issues, meetings, mail, teams }) => {
+    async ({
+      date,
+      issues,
+      workItems,
+      meetings,
+      mail,
+      teams,
+      configuration
+    }) => {
       try {
+        const validatedConfiguration = TimesheetConfigurationSchema.parse(
+          configuration ?? DEFAULT_TIMESHEET_CONFIGURATION
+        );
+        const normalizedWorkItems = [
+          ...new Map(
+            [...issues, ...workItems].map((item) => [
+              `${item.source ?? "jira"}:${item.key}`,
+              item
+            ])
+          ).values()
+        ];
         const rundown = planExplicitWorkday({
           ...(date ? { date } : {}),
-          issues,
+          issues: normalizedWorkItems,
           meetings,
           mail,
-          teams
+          teams,
+          configuration: validatedConfiguration
         });
 
         return {
           content: [
             {
               type: "text" as const,
-              text: `${rundown.summary} The embedded planner shows the schedule and exactly ${rundown.timesheet.totalMinutes / 60} timesheet hours.`
+              text: `${rundown.summary} The embedded planner shows the schedule and a balanced ${rundown.timesheet.totalMinutes / 60}-hour timesheet for ${validatedConfiguration.timesheetSystem}.`
             }
           ],
-          structuredContent: rundown
+          structuredContent: {
+            view: "plan" as const,
+            configuration: validatedConfiguration,
+            rundown
+          }
         };
       } catch (error) {
         const message =
@@ -141,12 +211,21 @@ export function createPlannerMcpServer(): McpServer {
 
   registerAppResource(
     server,
-    "TechnoTracker dashboard",
+    "TechnoTracker workday",
     WIDGET_URI,
     {
       mimeType: RESOURCE_MIME_TYPE,
       description:
-        "A compact schedule, priorities, blockers, action items, and eight-hour timesheet dashboard."
+        "Interactive onboarding and a compact schedule, priorities, blockers, action items, and balanced timesheet.",
+      _meta: {
+        ui: {
+          prefersBorder: true,
+          csp: {
+            connectDomains: [],
+            resourceDomains: []
+          }
+        }
+      }
     },
     async () => ({
       contents: [

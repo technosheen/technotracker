@@ -4,7 +4,8 @@ import type {
   MailMessage,
   Meeting,
   ScheduleItem,
-  TeamsMessage
+  TeamsMessage,
+  TimesheetConfiguration
 } from "../contracts.js";
 import { rankIssues } from "./priority.js";
 import { scheduleWork } from "./scheduler.js";
@@ -18,6 +19,7 @@ export interface DailyInputs {
   teams: TeamsMessage[];
   dayStart: string;
   dayEnd: string;
+  configuration: TimesheetConfiguration;
 }
 
 export function createDailyRundown(input: DailyInputs): DailyRundown {
@@ -25,7 +27,8 @@ export function createDailyRundown(input: DailyInputs): DailyRundown {
   const priorities = rankIssues(input.issues, input.date);
   const workBlocks = scheduleWork(priorities, meetings, {
     dayStart: input.dayStart,
-    dayEnd: input.dayEnd
+    dayEnd: input.dayEnd,
+    prefixMappings: input.configuration.prefixMappings
   });
   const schedule: ScheduleItem[] = [
     ...meetings.map((meeting) => ({ ...meeting, kind: "meeting" as const })),
@@ -50,7 +53,7 @@ export function createDailyRundown(input: DailyInputs): DailyRundown {
     blockers,
     actionItems,
     schedule,
-    timesheet: generateTimesheet(schedule)
+    timesheet: generateTimesheet(schedule, input.configuration)
   };
 }
 

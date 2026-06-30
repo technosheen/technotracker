@@ -3,7 +3,12 @@ import type {
   JiraIssue,
   MailMessage,
   Meeting,
-  TeamsMessage
+  TeamsMessage,
+  TimesheetConfiguration
+} from "./contracts.js";
+import {
+  DEFAULT_TIMESHEET_CONFIGURATION,
+  TimesheetConfigurationSchema
 } from "./contracts.js";
 import {
   createDailyRundown,
@@ -20,10 +25,14 @@ export interface ExplicitWorkdayInput {
   timeZone?: string;
   workdayStart?: string;
   workdayEnd?: string;
+  configuration?: TimesheetConfiguration;
 }
 
 export function planExplicitWorkday(input: ExplicitWorkdayInput): DailyRundown {
-  const timeZone = input.timeZone ?? "America/New_York";
+  const configuration = TimesheetConfigurationSchema.parse(
+    input.configuration ?? DEFAULT_TIMESHEET_CONFIGURATION
+  );
+  const timeZone = input.timeZone ?? configuration.timeZone;
   const date = input.date ?? dateInTimeZone(new Date(), timeZone);
 
   return createDailyRundown({
@@ -32,7 +41,16 @@ export function planExplicitWorkday(input: ExplicitWorkdayInput): DailyRundown {
     meetings: input.meetings,
     mail: input.mail,
     teams: input.teams,
-    dayStart: zonedBoundary(date, input.workdayStart ?? "09:00", timeZone),
-    dayEnd: zonedBoundary(date, input.workdayEnd ?? "17:00", timeZone)
+    dayStart: zonedBoundary(
+      date,
+      input.workdayStart ?? configuration.workdayStart,
+      timeZone
+    ),
+    dayEnd: zonedBoundary(
+      date,
+      input.workdayEnd ?? configuration.workdayEnd,
+      timeZone
+    ),
+    configuration
   });
 }

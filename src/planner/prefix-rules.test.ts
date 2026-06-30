@@ -14,4 +14,16 @@ describe("prefix rules", () => {
   it("uses INT-58 for non-HUB/DTC work", () => {
     expect(timesheetCodeForIssue("OPS-12")).toBe("INT-58");
   });
+
+  it("applies company-specific labels and timesheet code templates", () => {
+    const mappings = [
+      { prefix: "OPS", label: "OPERATIONS", timesheetCode: "OPS-BILLABLE" }
+    ];
+    expect(calendarTitleForIssue("OPS-12", mappings)).toBe(
+      "OPERATIONS | OPS-12"
+    );
+    expect(timesheetCodeForIssue("OPS-12", mappings, "ADMIN")).toBe(
+      "OPS-BILLABLE"
+    );
+  });
 });

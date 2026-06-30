@@ -22,7 +22,7 @@ describe("Apps SDK MCP server", () => {
     });
   });
 
-  it("advertises one read-only planner tool with an MCP UI resource", async () => {
+  it("advertises onboarding, app-only validation, and planner tools", async () => {
     const response = await callMcp(baseUrl, {
       jsonrpc: "2.0",
       id: 1,
@@ -30,10 +30,13 @@ describe("Apps SDK MCP server", () => {
       params: {}
     });
 
+    expect(response).toContain('"name":"show_technotracker_onboarding"');
+    expect(response).toContain('"name":"save_technotracker_configuration"');
     expect(response).toContain('"name":"generate_workday_plan"');
     expect(response).toContain('"readOnlyHint":true');
+    expect(response).toContain('"visibility":["app"]');
     expect(response).toContain(
-      '"resourceUri":"ui://technotracker/dashboard.html"'
+      '"resourceUri":"ui://technotracker/workday.html"'
     );
   });
 
@@ -73,6 +76,22 @@ describe("Apps SDK MCP server", () => {
     expect(response).toContain('"totalMinutes":480');
     expect(response).toContain('"showAs":"busy"');
     expect(response).toContain('"showAs":"free"');
+  });
+
+  it("renders onboarding with validated defaults", async () => {
+    const response = await callMcp(baseUrl, {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: {
+        name: "show_technotracker_onboarding",
+        arguments: {}
+      }
+    });
+
+    expect(response).toContain('"view":"onboarding"');
+    expect(response).toContain('"targetHours":8');
+    expect(response).toContain('"meetingCode":"INT-58"');
   });
 });
 

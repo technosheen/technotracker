@@ -8,6 +8,7 @@ export const previewRundown: DailyRundown = {
     {
       issue: {
         key: "DTC-5238",
+        source: "jira",
         summary: "Boost Coverage component",
         description: "",
         status: "Blocked",
@@ -24,6 +25,7 @@ export const previewRundown: DailyRundown = {
     {
       issue: {
         key: "HUB-235",
+        source: "jira",
         summary: "Shared fragments in HubSpot",
         description: "",
         status: "Ready for QA",
@@ -40,6 +42,7 @@ export const previewRundown: DailyRundown = {
     {
       issue: {
         key: "HUB-62",
+        source: "jira",
         summary: "Interactive USA map module",
         description: "",
         status: "Dev In Progress",
@@ -113,14 +116,14 @@ export const previewRundown: DailyRundown = {
         code: "DTC-5238",
         description: "Boost Coverage component",
         minutes: 150,
-        source: "jira"
+        source: "work_item"
       },
       {
         id: "ts-3",
         code: "HUB-235",
         description: "Shared fragments in HubSpot",
         minutes: 150,
-        source: "jira"
+        source: "work_item"
       },
       {
         id: "ts-4",

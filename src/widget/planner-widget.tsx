@@ -1,7 +1,15 @@
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import type { App as McpApp } from "@modelcontextprotocol/ext-apps";
-import type { DailyRundown, ScheduleItem, TimesheetEntry } from "../contracts.js";
 import React, { useMemo, useState } from "react";
+import {
+  AppPayloadSchema,
+  DEFAULT_TIMESHEET_CONFIGURATION,
+  type AppPayload,
+  type DailyRundown,
+  type ScheduleItem,
+  type TimesheetEntry
+} from "../contracts.js";
+import { OnboardingWidget } from "./onboarding-widget.js";
 import { previewRundown } from "./preview-data.js";
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -10,38 +18,65 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 });
 
 export function PlannerWidget() {
-  const preview = new URLSearchParams(window.location.search).has("preview");
-  const [rundown, setRundown] = useState<DailyRundown | null>(() =>
-    preview ? previewRundown : null
+  const previewMode = new URLSearchParams(window.location.search).get("preview");
+  const preview = previewMode !== null;
+  const [payload, setPayload] = useState<AppPayload | null>(() =>
+    preview
+      ? previewMode === "plan"
+        ? {
+            view: "plan",
+            configuration: DEFAULT_TIMESHEET_CONFIGURATION,
+            rundown: previewRundown
+          }
+        : {
+            view: "onboarding",
+            configuration: DEFAULT_TIMESHEET_CONFIGURATION
+          }
+      : null
   );
   const { app, error } = useApp({
-    appInfo: { name: "TechnoTracker", version: "0.1.0" },
+    appInfo: { name: "TechnoTracker", version: "0.2.0" },
     capabilities: {},
     onAppCreated: (createdApp: McpApp) => {
       createdApp.ontoolresult = (result) => {
-        setRundown(result.structuredContent as unknown as DailyRundown);
+        const parsed = AppPayloadSchema.safeParse(result.structuredContent);
+        if (parsed.success) setPayload(parsed.data);
       };
     }
   });
   useHostStyles(app, app?.getHostContext());
 
+  if (!preview && error) {
+    return <Status message={`Connection failed: ${error.message}`} tone="error" />;
+  }
+  if (!preview && !app) return <Status message="Connecting to ChatGPT…" />;
+  if (!payload) return <Status message="Waiting for TechnoTracker…" />;
+
+  if (payload.view === "onboarding") {
+    return (
+      <OnboardingWidget
+        app={app}
+        initialConfiguration={payload.configuration}
+        preview={preview}
+      />
+    );
+  }
+
+  return <WorkdayPlan rundown={payload.rundown} />;
+}
+
+function WorkdayPlan({ rundown }: { rundown: DailyRundown }) {
   const focusMinutes = useMemo(
     () =>
-      rundown?.schedule.reduce(
+      rundown.schedule.reduce(
         (total, item) =>
           item.kind === "work"
             ? total + (Date.parse(item.end) - Date.parse(item.start)) / 60_000
             : total,
         0
-      ) ?? 0,
-    [rundown]
+      ),
+    [rundown.schedule]
   );
-
-  if (!preview && error) {
-    return <Status message={`Connection failed: ${error.message}`} tone="error" />;
-  }
-  if (!preview && !app) return <Status message="Connecting to ChatGPT…" />;
-  if (!rundown) return <Status message="Waiting for the workday plan…" />;
 
   return (
     <main className="planner-shell">

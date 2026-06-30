@@ -25,8 +25,13 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+button {
+  color: inherit;
 }
 
 .planner-shell {
@@ -366,8 +371,316 @@ ol {
   box-shadow: 0 0 0 5px rgba(184, 73, 57, 0.14);
 }
 
+.onboarding-shell {
+  width: min(100%, 820px);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.onboarding-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 32px;
+  align-items: start;
+  padding: 20px 0 24px;
+  border-bottom: 1px solid rgba(24, 32, 24, 0.14);
+}
+
+.onboarding-header h1 {
+  max-width: 560px;
+}
+
+.privacy-note {
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 1px solid rgba(24, 32, 24, 0.15);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.privacy-note strong {
+  font-size: 12px;
+}
+
+.privacy-note span {
+  color: #687064;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.stepper button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #687064;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.stepper button span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dde2d6;
+  font-size: 10px;
+}
+
+.stepper button.active {
+  border-color: rgba(24, 32, 24, 0.14);
+  background: rgba(255, 255, 255, 0.66);
+  color: #182018;
+}
+
+.stepper button.active span {
+  background: #dff08b;
+}
+
+.onboarding-panel {
+  min-height: 420px;
+  padding: 26px;
+  border: 1px solid rgba(24, 32, 24, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.form-section {
+  display: grid;
+  gap: 24px;
+}
+
+.section-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.section-copy h2,
+.section-copy p {
+  margin: 0;
+}
+
+.section-copy h2 {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.section-copy p,
+.mapping-list > p {
+  color: #687064;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field > span,
+.choice-group legend,
+.mapping-list legend {
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.field input,
+.field select,
+.mapping-row input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #cbd1c5;
+  border-radius: 10px;
+  outline: none;
+  background: #fff;
+  color: #182018;
+  font-size: 13px;
+}
+
+.field input:focus,
+.field select:focus,
+.mapping-row input:focus {
+  border-color: #718522;
+  box-shadow: 0 0 0 3px rgba(159, 186, 53, 0.2);
+}
+
+.choice-group,
+.mapping-list {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.choice-group label {
+  padding: 8px 11px;
+  border: 1px solid #cbd1c5;
+  border-radius: 999px;
+  background: #fff;
+  color: #596255;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.choice-group label.selected {
+  border-color: #718522;
+  background: #edf4ca;
+  color: #273019;
+}
+
+.choice-group input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.switch-row {
+  display: flex;
+  gap: 11px;
+  align-items: start;
+  padding: 13px;
+  border: 1px solid rgba(24, 32, 24, 0.12);
+  border-radius: 12px;
+  background: #f7f8f4;
+}
+
+.switch-row input {
+  margin-top: 2px;
+  accent-color: #718522;
+}
+
+.switch-row span {
+  display: grid;
+  gap: 3px;
+}
+
+.switch-row strong {
+  font-size: 12px;
+}
+
+.switch-row small {
+  color: #687064;
+  font-size: 11px;
+}
+
+.mapping-list > p {
+  margin: 5px 0 10px;
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr 1.2fr 34px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mapping-row input {
+  min-height: 38px;
+}
+
+.mapping-row button {
+  border: 0;
+  border-radius: 9px;
+  background: #ebece7;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.text-button {
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: #52631b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.onboarding-actions {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 0 0;
+}
+
+.onboarding-actions > p {
+  max-width: 420px;
+  margin: 0;
+  color: #687064;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.onboarding-actions > div {
+  display: flex;
+  gap: 8px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 40px;
+  padding: 9px 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.primary-button {
+  border: 1px solid #26331d;
+  background: #26331d;
+  color: #fff;
+}
+
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.secondary-button {
+  border: 1px solid #cbd1c5;
+  background: transparent;
+}
+
+.error-copy {
+  color: #923327 !important;
+}
+
 @media (max-width: 620px) {
-  .planner-shell {
+  .planner-shell,
+  .onboarding-shell {
     padding: 18px;
   }
 
@@ -383,11 +696,55 @@ ol {
     grid-template-columns: 1fr;
     gap: 28px;
   }
+
+  .onboarding-header {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .stepper button {
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .stepper button {
+    font-size: 0;
+  }
+
+  .stepper button span {
+    font-size: 10px;
+  }
+
+  .onboarding-panel {
+    min-height: 0;
+    padding: 20px;
+  }
+
+  .form-grid,
+  .mapping-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mapping-row button {
+    min-height: 34px;
+  }
+
+  .onboarding-actions {
+    display: grid;
+  }
+
+  .onboarding-actions > div {
+    justify-content: flex-end;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .planner-shell {
     animation: enter 220ms ease-out both;
+  }
+
+  .onboarding-panel {
+    animation: enter 180ms ease-out both;
   }
 
   @keyframes enter {

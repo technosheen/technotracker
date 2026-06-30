@@ -1,4 +1,4 @@
-import type { Meeting, WorkBlock } from "../contracts.js";
+import type { Meeting, PrefixMapping, WorkBlock } from "../contracts.js";
 import type { ScoredIssue } from "./priority.js";
 import { calendarTitleForIssue } from "./prefix-rules.js";
 import { assertNoOverlaps, overlaps, toMillis } from "./time.js";
@@ -11,6 +11,7 @@ export interface SchedulerOptions {
   dayEnd: string;
   meetingBufferMinutes?: number;
   blockMinutes?: number;
+  prefixMappings?: PrefixMapping[];
 }
 
 export function scheduleWork(
@@ -46,7 +47,10 @@ export function scheduleWork(
       blocks.push({
         id: `planner:${priority.issue.key}:${candidate.start}`,
         issueKey: priority.issue.key,
-        title: `${calendarTitleForIssue(priority.issue.key)} | ${priority.issue.summary}`,
+        title: `${calendarTitleForIssue(
+          priority.issue.key,
+          options.prefixMappings
+        )} | ${priority.issue.summary}`,
         start: candidate.start,
         end: candidate.end,
         showAs: "free",
