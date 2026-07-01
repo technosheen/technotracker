@@ -1,6 +1,6 @@
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import type { App as McpApp } from "@modelcontextprotocol/ext-apps";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AppPayloadSchema,
   DEFAULT_TIMESHEET_CONFIGURATION,
@@ -10,12 +10,16 @@ import {
   type TimesheetConfiguration,
   type TimesheetEntry
 } from "../contracts.js";
+import { adjustScheduleItem } from "../planner/schedule-edit.js";
+import { prepareWorkdayReconciliation } from "../planner/reconciliation.js";
+import { ActivityLogPanel } from "./activity-log-panel.js";
 import { OnboardingWidget } from "./onboarding-widget.js";
 import {
   previewReconciliationDraft,
   previewRundown
 } from "./preview-data.js";
 import { ReconciliationWidget } from "./reconciliation-widget.js";
+import { useActivityLog } from "./use-activity-log.js";
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
@@ -46,7 +50,7 @@ export function PlannerWidget() {
       : null
   );
   const { app, error } = useApp({
-    appInfo: { name: "TechnoTracker", version: "0.4.0" },
+    appInfo: { name: "TechnoTracker", version: "0.5.0" },
     capabilities: {},
     onAppCreated: (createdApp: McpApp) => {
       createdApp.ontoolresult = (result) => {
@@ -116,6 +120,8 @@ function WorkdayPlan({
   onPayload: (payload: unknown) => void;
 }) {
   const [actionStatus, setActionStatus] = useState("");
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const { entries: activityEntries, log } = useActivityLog(rundown.date);
   const focusMinutes = useMemo(
     () =>
       rundown.schedule.reduce(
@@ -128,13 +134,70 @@ function WorkdayPlan({
     [rundown.schedule]
   );
 
+  useEffect(() => {
+    const planSignature = rundown.schedule
+      .map((item) => `${item.id}:${item.start}:${item.end}`)
+      .join("|");
+    log(
+      "plan_generated",
+      `Workday plan generated: ${rundown.timesheet.totalMinutes / 60}h balanced across ${rundown.schedule.length} schedule item(s).`,
+      `activity:${rundown.date}:plan:${planSignature}`
+    );
+    // Log once when this plan is first shown, not on every subsequent re-render.
+  }, []);
+
+  async function nudgeScheduleItem(item: ScheduleItem, deltaMinutes: number) {
+    if (item.kind !== "work") return;
+    const start = new Date(Date.parse(item.start) + deltaMinutes * 60_000).toISOString();
+    const end = new Date(Date.parse(item.end) + deltaMinutes * 60_000).toISOString();
+    setReschedulingId(item.id);
+    setActionStatus("");
+    try {
+      let updatedRundown: DailyRundown;
+      if (preview || !app) {
+        updatedRundown = adjustScheduleItem({
+          rundown,
+          configuration,
+          itemId: item.id,
+          start,
+          end
+        });
+      } else {
+        const response = await app.callServerTool({
+          name: "adjust_schedule_item",
+          arguments: { rundown, configuration, itemId: item.id, start, end }
+        });
+        const parsed = AppPayloadSchema.safeParse(response.structuredContent);
+        if (!parsed.success || parsed.data.view !== "plan") {
+          throw new Error("Could not adjust the schedule item.");
+        }
+        updatedRundown = parsed.data.rundown;
+      }
+      log(
+        "schedule_adjusted",
+        `Moved "${item.title}" ${deltaMinutes > 0 ? "later" : "earlier"} by ${Math.abs(deltaMinutes)} minutes.`,
+        `activity:${rundown.date}:schedule:${item.id}:${start}:${end}`
+      );
+      onPayload({ view: "plan", configuration, rundown: updatedRundown });
+    } catch (error) {
+      setActionStatus(
+        error instanceof Error ? error.message : "Could not adjust the schedule item."
+      );
+    } finally {
+      setReschedulingId(null);
+    }
+  }
+
   async function reconcileDay() {
     setActionStatus("Preparing reconciliation…");
     if (preview || !app) {
       onPayload({
         view: "reconciliation",
         phase: "draft",
-        draft: previewReconciliationDraft
+        draft: prepareWorkdayReconciliation({
+          originalRundown: rundown,
+          configuration
+        })
       });
       return;
     }
@@ -160,16 +223,28 @@ function WorkdayPlan({
       setActionStatus("Ask ChatGPT to remind you at the end of your workday.");
       return;
     }
-    await app.sendMessage({
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text: `Remind me at ${configuration.workdayEnd} ${configuration.timeZone} today to reconcile this TechnoTracker plan. When I respond, gather refreshed context from only my approved apps and call prepare_workday_reconciliation.`
-        }
-      ]
-    });
-    setActionStatus("Reminder request sent to ChatGPT.");
+    try {
+      await app.sendMessage({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Remind me at ${configuration.workdayEnd} ${configuration.timeZone} today to reconcile this TechnoTracker plan. When I respond, gather refreshed context from only my approved apps and call prepare_workday_reconciliation.`
+          }
+        ]
+      });
+      log(
+        "reminder_sent",
+        `Reminder requested for ${configuration.workdayEnd} ${configuration.timeZone}.`
+      );
+      setActionStatus("Reminder request sent to ChatGPT.");
+    } catch (error) {
+      setActionStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not send the reminder request."
+      );
+    }
   }
 
   return (
@@ -215,7 +290,12 @@ function WorkdayPlan({
           <SectionHeading title="Schedule" count={rundown.schedule.length} />
           <ol className="timeline">
             {rundown.schedule.map((item) => (
-              <ScheduleRow key={`${item.kind}-${item.id}`} item={item} />
+              <ScheduleRow
+                key={`${item.kind}-${item.id}`}
+                item={item}
+                busy={reschedulingId === item.id}
+                onNudge={(deltaMinutes) => nudgeScheduleItem(item, deltaMinutes)}
+              />
             ))}
           </ol>
         </section>
@@ -268,6 +348,8 @@ function WorkdayPlan({
               <strong>{formatDuration(rundown.timesheet.totalMinutes)}</strong>
             </div>
           </section>
+
+          <ActivityLogPanel entries={activityEntries} />
         </aside>
       </div>
     </main>
@@ -315,7 +397,15 @@ function SectionHeading({ title, count }: { title: string; count: number }) {
   );
 }
 
-function ScheduleRow({ item }: { item: ScheduleItem }) {
+function ScheduleRow({
+  item,
+  busy,
+  onNudge
+}: {
+  item: ScheduleItem;
+  busy?: boolean;
+  onNudge?: (deltaMinutes: number) => void;
+}) {
   const duration = (Date.parse(item.end) - Date.parse(item.start)) / 60_000;
   return (
     <li className={`timeline-row ${item.kind}`}>
@@ -326,6 +416,26 @@ function ScheduleRow({ item }: { item: ScheduleItem }) {
       <div>
         <strong>{item.title}</strong>
         <span>{item.kind === "meeting" ? "Busy meeting" : `${item.issueKey} · Free`}</span>
+        {item.kind === "work" && onNudge ? (
+          <div className="schedule-nudge" aria-label={`Move ${item.title}`}>
+            <button
+              type="button"
+              className="text-button"
+              disabled={busy}
+              onClick={() => onNudge(-15)}
+            >
+              ← Earlier
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              disabled={busy}
+              onClick={() => onNudge(15)}
+            >
+              Later →
+            </button>
+          </div>
+        ) : null}
       </div>
     </li>
   );

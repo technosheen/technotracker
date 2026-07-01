@@ -414,64 +414,6 @@ export const AppPayloadSchema = z.union([
   ReconciliationPayloadSchema
 ]);
 
-export const DailyRundownRequestSchema = z.object({
-  date: z.string().date().optional(),
-  captures: z
-    .object({
-      meetings: z
-        .array(
-          MeetingSchema.refine(
-            (meeting) => new Date(meeting.end) > new Date(meeting.start),
-            { message: "Meeting end must be after its start." }
-          )
-        )
-        .default([]),
-      mail: z.array(MailMessageSchema).default([]),
-      teams: z.array(TeamsMessageSchema).default([])
-    })
-    .default({ meetings: [], mail: [], teams: [] })
-});
-
-export const CalendarSyncRequestSchema = z.object({
-  schedule: z.array(ScheduleItemSchema)
-});
-
-export const CalendarSyncResponseSchema = z.object({
-  created: z.number().int().nonnegative(),
-  updated: z.number().int().nonnegative(),
-  skippedMeetings: z.number().int().nonnegative()
-});
-
-export const MicrosoftAuthStatusSchema = z.object({
-  mode: z.enum(["manual", "delegated", "client_credentials", "demo"]),
-  status: z.enum(["connected", "disconnected"]),
-  account: z
-    .object({
-      name: z.string().nullable(),
-      username: z.string()
-    })
-    .nullable()
-});
-
-export const MicrosoftDeviceLoginSchema = z.object({
-  sessionId: z.string(),
-  userCode: z.string(),
-  verificationUri: z.string().url(),
-  message: z.string(),
-  expiresIn: z.number().int().positive()
-});
-
-export const MicrosoftDeviceLoginStatusSchema = z.object({
-  status: z.enum(["pending", "connected", "failed"]),
-  account: z
-    .object({
-      name: z.string().nullable(),
-      username: z.string()
-    })
-    .optional(),
-  error: z.string().optional()
-});
-
 export type JiraIssue = z.infer<typeof JiraIssueSchema>;
 export type MailMessage = z.infer<typeof MailMessageSchema>;
 export type TeamsMessage = z.infer<typeof TeamsMessageSchema>;
@@ -487,11 +429,6 @@ export type ReconciliationDraft = z.infer<typeof ReconciliationDraftSchema>;
 export type ReconciliationResult = z.infer<typeof ReconciliationResultSchema>;
 export type ReconciledTimesheet = z.infer<typeof ReconciledTimesheetSchema>;
 export type DailyRundown = z.infer<typeof DailyRundownSchema>;
-export type CalendarSyncResponse = z.infer<typeof CalendarSyncResponseSchema>;
-export type MicrosoftAuthStatus = z.infer<typeof MicrosoftAuthStatusSchema>;
-export type MicrosoftDeviceLogin = z.infer<typeof MicrosoftDeviceLoginSchema>;
-export type MicrosoftDeviceLoginStatus = z.infer<typeof MicrosoftDeviceLoginStatusSchema>;
-export type DailyRundownRequest = z.infer<typeof DailyRundownRequestSchema>;
 export type TimesheetConfiguration = z.infer<
   typeof TimesheetConfigurationSchema
 >;

@@ -38,6 +38,7 @@ describe("Apps SDK MCP server", () => {
     expect(response).toContain('"name":"show_technotracker_onboarding"');
     expect(response).toContain('"name":"save_technotracker_configuration"');
     expect(response).toContain('"name":"generate_workday_plan"');
+    expect(response).toContain('"name":"adjust_schedule_item"');
     expect(response).toContain('"name":"prepare_workday_reconciliation"');
     expect(response).toContain('"name":"finalize_workday_reconciliation"');
     expect(response).toContain('"readOnlyHint":true');
@@ -177,6 +178,29 @@ describe("Apps SDK MCP server", () => {
     expect(finalized).toContain('"phase":"final"');
     expect(finalized).toContain('"totalMinutes":480');
     expect(finalized).toContain('"approvalState":"approved"');
+  });
+
+  it("adjusts one work block without changing its duration or external state", async () => {
+    const response = await callMcp(baseUrl, {
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: {
+        name: "adjust_schedule_item",
+        arguments: {
+          rundown: reconciliationRundown(),
+          configuration: DEFAULT_TIMESHEET_CONFIGURATION,
+          itemId: "work-1",
+          start: "2026-06-30T16:00:00.000Z",
+          end: "2026-06-30T18:00:00.000Z"
+        }
+      }
+    });
+
+    expect(response).toContain('"view":"plan"');
+    expect(response).toContain('"start":"2026-06-30T16:00:00.000Z"');
+    expect(response).toContain('"end":"2026-06-30T18:00:00.000Z"');
+    expect(response).toContain('"totalMinutes":480');
   });
 });
 

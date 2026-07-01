@@ -7,12 +7,16 @@ import {
   type ReconciliationResult
 } from "../contracts.js";
 import { finalizeWorkdayReconciliation } from "../planner/reconciliation.js";
+import { ActivityLogPanel } from "./activity-log-panel.js";
 import {
   RECONCILIATION_STORAGE_KEY,
+  draftSourcesMatch,
+  mergeDraftStores,
   pruneDraftStore,
   saveDatedDraft,
   type ReconciliationDraftStore
 } from "./reconciliation-storage.js";
+import { useActivityLog } from "./use-activity-log.js";
 
 export function ReconciliationWidget({
   app,
@@ -42,11 +46,44 @@ export function ReconciliationWidget({
     () => entries.reduce((total, entry) => total + entry.actualMinutes, 0),
     [entries]
   );
+  const { entries: activityEntries, log } = useActivityLog(draft.date);
 
   useEffect(() => {
     if (status === "final") return;
     persistDraft(draft, entries);
   }, [draft, entries, status]);
+
+  useEffect(() => {
+    if (!result) {
+      const draftSignature = draft.entries
+        .map(
+          (entry) =>
+            `${entry.id}:${entry.plannedMinutes}:${entry.actualMinutes}:${entry.issueKey ?? ""}`
+        )
+        .join("|");
+      log(
+        "reconciliation_prepared",
+        `Reconciliation prepared for ${draft.date}: ${draft.entries.length} entries to review.`,
+        `activity:${draft.date}:reconciliation-prepared:${draftSignature}`
+      );
+    }
+    // Log the initial phase once; finalization is logged separately below.
+  }, []);
+
+  useEffect(() => {
+    if (!activeResult) return;
+    const resultSignature = activeResult.entries
+      .map(
+        (entry) =>
+          `${entry.id}:${entry.completionStatus}:${entry.actualMinutes}:${entry.timesheetCode}`
+      )
+      .join("|");
+    log(
+      "reconciliation_finalized",
+      `Reconciliation finalized for ${activeResult.date}: ${activeResult.timesheet.totalMinutes} minutes, ${activeResult.carryover.length} carryover item(s).`,
+      `activity:${activeResult.date}:reconciliation-finalized:${resultSignature}`
+    );
+  }, [activeResult]);
 
   useEffect(() => {
     if (!app) return;
@@ -237,6 +274,8 @@ export function ReconciliationWidget({
           </button>
         </footer>
       )}
+
+      <ActivityLogPanel entries={activityEntries} />
     </main>
   );
 }
@@ -428,19 +467,25 @@ function SectionTitle({ title, count }: { title: string; count: number }) {
 
 function restoreEntries(draft: ReconciliationDraft): ActualEntry[] | null {
   const store = readDraftStore();
-  return store[draft.date]?.entries ?? null;
+  const stored = store[draft.date];
+  return stored && draftSourcesMatch(stored.draft, draft)
+    ? stored.entries
+    : null;
 }
 
 function readDraftStore(): ReconciliationDraftStore {
-  const widgetStore = getOpenAi()?.widgetState?.technotrackerReconciliationDrafts;
-  if (widgetStore) return pruneDraftStore(widgetStore);
+  const widgetStore = pruneDraftStore(
+    getOpenAi()?.widgetState?.technotrackerReconciliationDrafts
+  );
+  let localStore: ReconciliationDraftStore = {};
   try {
-    return pruneDraftStore(
+    localStore = pruneDraftStore(
       JSON.parse(localStorage.getItem(RECONCILIATION_STORAGE_KEY) ?? "{}")
     );
   } catch {
-    return {};
+    // ChatGPT widget state remains available when local storage is blocked.
   }
+  return mergeDraftStores(localStore, widgetStore);
 }
 
 function persistDraft(draft: ReconciliationDraft, entries: ActualEntry[]) {

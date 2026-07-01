@@ -28,8 +28,9 @@ import {
   finalizeWorkdayReconciliation,
   prepareWorkdayReconciliation
 } from "./planner/reconciliation.js";
+import { adjustScheduleItem } from "./planner/schedule-edit.js";
 
-const SERVER_VERSION = "0.4.0";
+const SERVER_VERSION = "0.5.0";
 const WIDGET_URI = "ui://technotracker/workday.html" as const;
 const APPS_TEMPLATE_URI = "ui://technotracker/apps-sdk/workday.html" as const;
 const widgetPath = path.resolve(process.cwd(), "dist", "widget", "index.html");
@@ -262,6 +263,64 @@ export function createPlannerMcpServer(): McpServer {
 
   registerAppTool(
     server,
+    "adjust_schedule_item",
+    {
+      title: "Adjust a schedule item",
+      description:
+        "Use this to move a single planned work block to a new time without regenerating the whole plan, for example when the user says a task should happen earlier or later today. Preserve the block's duration. Meetings are immutable and cannot be adjusted. It performs no external writes.",
+      inputSchema: {
+        rundown: DailyRundownSchema,
+        configuration: TimesheetConfigurationSchema,
+        itemId: z.string().trim().min(1).max(200).describe("The schedule item id to move."),
+        start: z.string().datetime().describe("The new start time, ISO 8601."),
+        end: z.string().datetime().describe("The new end time, ISO 8601.")
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      },
+      _meta: {
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": APPS_TEMPLATE_URI,
+        "openai/toolInvocation/invoking": "Adjusting the schedule…",
+        "openai/toolInvocation/invoked": "Schedule updated",
+        "openai/widgetAccessible": true
+      }
+    },
+    async ({ rundown, configuration, itemId, start, end }) => {
+      try {
+        const validatedConfiguration = TimesheetConfigurationSchema.parse(configuration);
+        const updatedRundown = adjustScheduleItem({
+          rundown,
+          configuration: validatedConfiguration,
+          itemId,
+          start,
+          end
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Moved the item to ${start}–${end}. The timesheet stays balanced at ${updatedRundown.timesheet.totalMinutes / 60} hours.`
+            },
+            mcpUiResource
+          ],
+          structuredContent: {
+            view: "plan" as const,
+            configuration: validatedConfiguration,
+            rundown: updatedRundown
+          }
+        };
+      } catch (error) {
+        return toolError(error);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
     "prepare_workday_reconciliation",
     {
       title: "Prepare workday reconciliation",
@@ -315,7 +374,7 @@ export function createPlannerMcpServer(): McpServer {
           }
         };
       } catch (error) {
-        return reconciliationError(error);
+        return toolError(error);
       }
     }
   );
@@ -364,7 +423,7 @@ export function createPlannerMcpServer(): McpServer {
           }
         };
       } catch (error) {
-        return reconciliationError(error);
+        return toolError(error);
       }
     }
   );
@@ -398,9 +457,9 @@ export function createPlannerMcpServer(): McpServer {
   return server;
 }
 
-function reconciliationError(error: unknown) {
+function toolError(error: unknown) {
   const message =
-    error instanceof Error ? error.message : "The reconciliation request failed.";
+    error instanceof Error ? error.message : "The TechnoTracker request failed.";
   return {
     isError: true as const,
     content: [{ type: "text" as const, text: message }]

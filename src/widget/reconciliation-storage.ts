@@ -72,3 +72,32 @@ export function saveDatedDraft(
     now
   );
 }
+
+export function mergeDraftStores(
+  ...stores: ReconciliationDraftStore[]
+): ReconciliationDraftStore {
+  const merged: ReconciliationDraftStore = {};
+  for (const store of stores) {
+    for (const [date, candidate] of Object.entries(store)) {
+      const existing = merged[date];
+      if (!existing || candidate.savedAt > existing.savedAt) {
+        merged[date] = candidate;
+      }
+    }
+  }
+  return pruneDraftStore(merged);
+}
+
+export function draftSourcesMatch(
+  stored: ReconciliationDraft,
+  current: ReconciliationDraft
+): boolean {
+  return (
+    stored.date === current.date &&
+    JSON.stringify(stored.originalRundown) ===
+      JSON.stringify(current.originalRundown) &&
+    JSON.stringify(stored.configuration) ===
+      JSON.stringify(current.configuration) &&
+    JSON.stringify(stored.entries) === JSON.stringify(current.entries)
+  );
+}

@@ -890,8 +890,12 @@ function workflowPrompt(configuration: TimesheetConfiguration): string {
 
 type ChatGptWindow = Window & {
   openai?: {
-    widgetState?: { technotrackerConfiguration?: unknown };
-    setWidgetState?: (state: unknown) => Promise<void>;
+    widgetState?: {
+      technotrackerConfiguration?: unknown;
+      technotrackerReconciliationDrafts?: unknown;
+      technotrackerActivityLog?: unknown;
+    };
+    setWidgetState?: (state: unknown) => void | Promise<void>;
   };
 };
 
@@ -903,6 +907,7 @@ function persistChatGptWidgetState(configuration: TimesheetConfiguration) {
   const openai = (window as ChatGptWindow).openai;
   if (openai?.setWidgetState) {
     void openai.setWidgetState({
+      ...(openai.widgetState ?? {}),
       technotrackerConfiguration: configuration
     });
   }

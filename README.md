@@ -30,6 +30,9 @@ Microsoft permissions.
   is app-only, idempotent, and does not write to an external system.
 - `generate_workday_plan` accepts normalized work items, meetings, messages,
   and the validated configuration, then renders the plan.
+- `adjust_schedule_item` moves a single planned work block to a new time
+  without regenerating the whole plan, deterministically rebalancing the
+  timesheet. Meetings are immutable and cannot be adjusted.
 - `prepare_workday_reconciliation` turns the original rundown and refreshed
   context into app-derived actual-work suggestions that require confirmation.
 - `finalize_workday_reconciliation` is an idempotent pure transform that
@@ -38,6 +41,10 @@ Microsoft permissions.
 
 The widget keeps versioned, non-sensitive preferences and dated reconciliation
 drafts in ChatGPT widget state and browser storage. Drafts expire after 14 days.
+It also keeps a per-day activity timeline (plan generated, schedule adjusted,
+reconciliation prepared/finalized, reminders sent) in the same storage, so the
+widget stays in sync across every view without waiting on another chat turn.
+Activity entries expire after 14 days.
 It sends concise context to the conversation at prepare/finalize boundaries.
 Durable cross-device profiles would require an authenticated storage service
 and are intentionally out of scope.
@@ -69,6 +76,9 @@ The same bundled React UI is published in two forms:
 - Meetings are immutable busy intervals.
 - Generated work blocks are free and never overlap meetings.
 - Work blocks receive a 15-minute meeting buffer.
+- Work blocks can be nudged earlier or later in 15-minute increments directly
+  from the widget; the move is rejected if it would overlap a meeting (with
+  buffer), another work block, or the configured workday hours.
 - Planned timesheets exactly match the configured daily target.
 - Reconciliation supports completed, partial, skipped, replaced, and unplanned
   work with editable duration, issue key, timesheet code, and notes.
@@ -126,9 +136,10 @@ npm audit --omit=dev
 ```
 
 Tests cover default and custom prefix rules, onboarding/tool metadata, priority
-scoring, overlap detection, meeting buffers, free/busy behavior, reconciliation
-confirmation, carryover, rounding, meeting exclusion, target balancing,
-overtime policies, draft expiry, and idempotent finalization.
+scoring, overlap detection, meeting buffers, free/busy behavior, single
+schedule-item rescheduling, reconciliation confirmation, carryover, rounding,
+meeting exclusion, target balancing, overtime policies, draft and activity-log
+expiry, and idempotent finalization.
 
 Implementation follows the
 [MCP-UI Apps SDK guide](https://mcpui.dev/guide/apps-sdk),
