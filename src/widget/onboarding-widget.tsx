@@ -2,6 +2,7 @@ import type { App as McpApp } from "@modelcontextprotocol/ext-apps";
 import React, { useState } from "react";
 import {
   TimesheetConfigurationSchema,
+  type ConnectedTool,
   type TimesheetConfiguration
 } from "../contracts.js";
 
@@ -17,14 +18,21 @@ const WORK_TOOLS = [
   ["trello", "Trello"],
   ["github", "GitHub"],
   ["notion", "Notion"],
-  ["other", "Other"]
+  ["hubspot", "HubSpot"],
+  ["confluence", "Confluence"],
+  ["google_drive", "Google Drive"],
+  ["figma", "Figma"],
+  ["supabase", "Supabase"],
+  ["vercel", "Vercel"],
+  ["xcode", "Xcode"],
+  ["other_work", "Other"]
 ] as const;
 
 const CALENDAR_TOOLS = [
   ["outlook", "Outlook"],
   ["google_calendar", "Google Calendar"],
   ["apple_calendar", "Apple Calendar"],
-  ["other", "Other"]
+  ["other_calendar", "Other"]
 ] as const;
 
 const COMMUNICATION_TOOLS = [
@@ -32,7 +40,7 @@ const COMMUNICATION_TOOLS = [
   ["slack", "Slack"],
   ["outlook_mail", "Outlook Mail"],
   ["gmail", "Gmail"],
-  ["other", "Other"]
+  ["other_communication", "Other"]
 ] as const;
 
 const REQUIRED_FIELDS = [
@@ -43,7 +51,13 @@ const REQUIRED_FIELDS = [
   ["work_category", "Work category"]
 ] as const;
 
-type Step = 1 | 2 | 3;
+const TOOL_LABELS = new Map<ConnectedTool, string>([
+  ...WORK_TOOLS,
+  ...CALENDAR_TOOLS,
+  ...COMMUNICATION_TOOLS
+]);
+
+type Step = 1 | 2 | 3 | 4;
 
 export function OnboardingWidget({
   app,
@@ -65,6 +79,35 @@ export function OnboardingWidget({
 
   function patch(values: Partial<TimesheetConfiguration>) {
     setConfiguration((current) => ({ ...current, ...values }));
+  }
+
+  function selectedTools(): ConnectedTool[] {
+    return [
+      ...configuration.workTools,
+      ...configuration.calendarTools,
+      ...configuration.communicationTools
+    ];
+  }
+
+  function connectionStatus(tool: ConnectedTool) {
+    return (
+      configuration.toolConnections.find((connection) => connection.tool === tool)
+        ?.status ?? "needs_connection"
+    );
+  }
+
+  function setConnectionStatus(
+    tool: ConnectedTool,
+    status: TimesheetConfiguration["toolConnections"][number]["status"]
+  ) {
+    patch({
+      toolConnections: [
+        ...configuration.toolConnections.filter(
+          (connection) => connection.tool !== tool
+        ),
+        { tool, status }
+      ]
+    });
   }
 
   async function save() {
@@ -116,8 +159,7 @@ export function OnboardingWidget({
       content: [
         {
           type: "text",
-          text:
-            "Use my saved TechnoTracker configuration. Gather today's relevant work context from my approved apps and generate my workday plan."
+          text: workflowPrompt(configuration)
         }
       ]
     });
@@ -144,7 +186,8 @@ export function OnboardingWidget({
         {[
           [1, "Your day"],
           [2, "Your tools"],
-          [3, "Timesheets"]
+          [3, "Time policy"],
+          [4, "Workflow"]
         ].map(([number, label]) => (
           <button
             type="button"
@@ -244,16 +287,55 @@ export function OnboardingWidget({
               selected={configuration.communicationTools}
               onChange={(communicationTools) => patch({ communicationTools })}
             />
+            <div className="connections">
+              <div className="connection-heading">
+                <div>
+                  <h3>Connection status</h3>
+                  <p>
+                    ChatGPT asks for authorization when it uses an app. Status is
+                    self-reported here because workspace policy controls availability.
+                  </p>
+                </div>
+                <a
+                  href="https://chatgpt.com/apps"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="secondary-link"
+                >
+                  Open ChatGPT Apps
+                </a>
+              </div>
+              <ul className="connection-list">
+                {selectedTools().map((tool) => (
+                  <li key={tool}>
+                    <span>{TOOL_LABELS.get(tool) ?? tool}</span>
+                    <select
+                      aria-label={`${TOOL_LABELS.get(tool) ?? tool} connection`}
+                      value={connectionStatus(tool)}
+                      onChange={(event) =>
+                        setConnectionStatus(
+                          tool,
+                          event.target.value as TimesheetConfiguration["toolConnections"][number]["status"]
+                        )
+                      }
+                    >
+                      <option value="connected">Connected in ChatGPT</option>
+                      <option value="needs_connection">Needs connection</option>
+                      <option value="manual">Manual capture / import</option>
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         ) : null}
 
         {step === 3 ? (
           <div className="form-section">
             <div className="section-copy">
-              <h2>Company timesheet rules</h2>
+              <h2>Company time policy</h2>
               <p>
-                Configure the output you will copy into your company’s timesheet
-                system.
+                Capture how time is measured, entered, reviewed, and submitted.
               </p>
             </div>
             <div className="form-grid">
@@ -307,6 +389,46 @@ export function OnboardingWidget({
                   ))}
                 </select>
               </Field>
+              <Field label="How time is measured">
+                <select
+                  value={configuration.timeTrackingBasis}
+                  onChange={(event) =>
+                    patch({
+                      timeTrackingBasis: event.target
+                        .value as TimesheetConfiguration["timeTrackingBasis"]
+                    })
+                  }
+                >
+                  <option value="fixed_day">Fixed daily target</option>
+                  <option value="actual_time">Actual time worked</option>
+                  <option value="billable_split">Billable / non-billable split</option>
+                  <option value="project_budget">Project budget allocation</option>
+                </select>
+              </Field>
+              <Field label="Entry cadence">
+                <select
+                  value={configuration.entryCadence}
+                  onChange={(event) =>
+                    patch({
+                      entryCadence: event.target
+                        .value as TimesheetConfiguration["entryCadence"]
+                    })
+                  }
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="per_task">As work is completed</option>
+                </select>
+              </Field>
+              <Field label="Submission timing">
+                <input
+                  value={configuration.submissionTiming}
+                  placeholder="Friday by 4 PM"
+                  onChange={(event) =>
+                    patch({ submissionTiming: event.target.value })
+                  }
+                />
+              </Field>
               <Field label="Meeting code">
                 <input
                   value={configuration.meetingCode}
@@ -333,12 +455,105 @@ export function OnboardingWidget({
               </span>
             </label>
 
+            <label className="switch-row">
+              <input
+                type="checkbox"
+                checked={configuration.approvalRequired}
+                onChange={(event) =>
+                  patch({ approvalRequired: event.target.checked })
+                }
+              />
+              <span>
+                <strong>Manager approval is required</strong>
+                <small>Flag the generated sheet as a draft until reviewed.</small>
+              </span>
+            </label>
+
             <ChoiceGroup
               legend="Required fields"
               options={REQUIRED_FIELDS}
               selected={configuration.requiredFields}
               onChange={(requiredFields) => patch({ requiredFields })}
             />
+          </div>
+        ) : null}
+
+        {step === 4 ? (
+          <div className="form-section">
+            <div className="section-copy">
+              <h2>Your preferred workflow</h2>
+              <p>
+                Choose when TechnoTracker should plan, reconcile, and prepare time
+                entries.
+              </p>
+            </div>
+            <div className="form-grid">
+              <Field label="Workflow">
+                <select
+                  value={configuration.workflow}
+                  onChange={(event) =>
+                    patch({
+                      workflow: event.target
+                        .value as TimesheetConfiguration["workflow"]
+                    })
+                  }
+                >
+                  <option value="morning_plan">Morning plan only</option>
+                  <option value="end_of_day_reconcile">
+                    End-of-day reconciliation
+                  </option>
+                  <option value="plan_and_reconcile">
+                    Morning plan + end-of-day reconciliation
+                  </option>
+                  <option value="weekly_summary">Weekly summary</option>
+                </select>
+              </Field>
+              <Field label="Run preference">
+                <select
+                  value={configuration.automationPreference}
+                  onChange={(event) =>
+                    patch({
+                      automationPreference: event.target
+                        .value as TimesheetConfiguration["automationPreference"]
+                    })
+                  }
+                >
+                  <option value="manual">Run manually</option>
+                  <option value="daily_prompt">Prompt me each workday</option>
+                  <option value="scheduled">Use a scheduled trigger</option>
+                </select>
+              </Field>
+              <Field label="Entry descriptions">
+                <select
+                  value={configuration.descriptionStyle}
+                  onChange={(event) =>
+                    patch({
+                      descriptionStyle: event.target
+                        .value as TimesheetConfiguration["descriptionStyle"]
+                    })
+                  }
+                >
+                  <option value="concise">Concise</option>
+                  <option value="detailed">Detailed</option>
+                  <option value="company_template">Company template</option>
+                </select>
+              </Field>
+              <Field label="Overtime handling">
+                <select
+                  value={configuration.overtimePolicy}
+                  onChange={(event) =>
+                    patch({
+                      overtimePolicy: event.target
+                        .value as TimesheetConfiguration["overtimePolicy"]
+                    })
+                  }
+                >
+                  <option value="cap_at_target">Cap at target hours</option>
+                  <option value="include_actual">Include actual time</option>
+                  <option value="flag_for_review">Flag for review</option>
+                </select>
+              </Field>
+            </div>
 
             <fieldset className="mapping-list">
               <legend>Ticket prefix mappings</legend>
@@ -439,7 +654,7 @@ export function OnboardingWidget({
               Back
             </button>
           ) : null}
-          {step < 3 ? (
+          {step < 4 ? (
             <button
               type="button"
               className="primary-button"
@@ -453,7 +668,7 @@ export function OnboardingWidget({
               className="primary-button"
               onClick={() => void continueInChat()}
             >
-              Build today’s plan
+              Start my workflow
             </button>
           ) : (
             <button
@@ -555,7 +770,15 @@ function configurationSummary(configuration: TimesheetConfiguration): string {
     `- Work tools: ${configuration.workTools.join(", ") || "none selected"}`,
     `- Calendar: ${configuration.calendarTools.join(", ") || "none selected"}`,
     `- Communication: ${configuration.communicationTools.join(", ") || "none selected"}`,
+    `- App connections: ${configuration.toolConnections
+      .filter((connection) =>
+        selectedConfigurationTools(configuration).includes(connection.tool)
+      )
+      .map((connection) => `${connection.tool}=${connection.status}`)
+      .join(", ") || "none selected"}`,
     `- Timesheet: ${configuration.timesheetSystem}; ${configuration.roundingMinutes}-minute rounding`,
+    `- Policy: ${configuration.timeTrackingBasis}; ${configuration.entryCadence}; submit ${configuration.submissionTiming}; approval ${configuration.approvalRequired ? "required" : "not required"}`,
+    `- Workflow: ${configuration.workflow}; ${configuration.automationPreference}; ${configuration.descriptionStyle} descriptions; overtime ${configuration.overtimePolicy}`,
     `- Meetings: ${configuration.countMeetings ? configuration.meetingCode : "excluded"}`,
     `- Internal code: ${configuration.internalCode}`,
     `- Prefix mappings: ${configuration.prefixMappings
@@ -565,6 +788,31 @@ function configurationSummary(configuration: TimesheetConfiguration): string {
       )
       .join("; ")}`
   ].join("\n");
+}
+
+function selectedConfigurationTools(
+  configuration: TimesheetConfiguration
+): ConnectedTool[] {
+  return [
+    ...configuration.workTools,
+    ...configuration.calendarTools,
+    ...configuration.communicationTools
+  ];
+}
+
+function workflowPrompt(configuration: TimesheetConfiguration): string {
+  const base =
+    "Use my saved TechnoTracker configuration and only my approved, connected apps.";
+  switch (configuration.workflow) {
+    case "morning_plan":
+      return `${base} Gather today's relevant work context and generate my morning workday plan.`;
+    case "end_of_day_reconcile":
+      return `${base} Reconcile today's completed work against meetings and tasks, then prepare my timesheet draft.`;
+    case "weekly_summary":
+      return `${base} Gather this week's completed work and prepare a weekly time summary using my company rules.`;
+    default:
+      return `${base} Generate today's workday plan now and remind me to reconcile actual work at the end of the day.`;
+  }
 }
 
 type ChatGptWindow = Window & {

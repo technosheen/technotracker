@@ -36,8 +36,37 @@ describe("Apps SDK MCP server", () => {
     expect(response).toContain('"readOnlyHint":true');
     expect(response).toContain('"visibility":["app"]');
     expect(response).toContain(
+      '"openai/outputTemplate":"ui://technotracker/apps-sdk/workday.html"'
+    );
+    expect(response).toContain(
       '"resourceUri":"ui://technotracker/workday.html"'
     );
+  });
+
+  it("publishes MCP-UI and ChatGPT Apps SDK resources", async () => {
+    const listed = await callMcp(baseUrl, {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "resources/list",
+      params: {}
+    });
+
+    expect(listed).toContain('"uri":"ui://technotracker/workday.html"');
+    expect(listed).toContain(
+      '"uri":"ui://technotracker/apps-sdk/workday.html"'
+    );
+    expect(listed).toContain('"mimeType":"text/html;profile=mcp-app"');
+    expect(listed).toContain('"mimeType":"text/html+skybridge"');
+
+    const template = await callMcp(baseUrl, {
+      jsonrpc: "2.0",
+      id: 5,
+      method: "resources/read",
+      params: { uri: "ui://technotracker/apps-sdk/workday.html" }
+    });
+
+    expect(template).toContain("MCPUIAppsSdkAdapter");
+    expect(template).toContain('"mimeType":"text/html+skybridge"');
   });
 
   it("returns a meeting-safe, exactly eight-hour plan", async () => {
@@ -76,6 +105,8 @@ describe("Apps SDK MCP server", () => {
     expect(response).toContain('"totalMinutes":480');
     expect(response).toContain('"showAs":"busy"');
     expect(response).toContain('"showAs":"free"');
+    expect(response).toContain('"type":"resource"');
+    expect(response).toContain('"mimeType":"text/html;profile=mcp-app"');
   });
 
   it("renders onboarding with validated defaults", async () => {

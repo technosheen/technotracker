@@ -35,15 +35,35 @@ export function createDailyRundown(input: DailyInputs): DailyRundown {
     ...workBlocks.map((block) => ({ ...block, kind: "work" as const }))
   ].sort((a, b) => a.start.localeCompare(b.start));
 
-  const blockers = priorities
+  const disconnectedTools = selectedTools(input.configuration).filter(
+    (tool) =>
+      input.configuration.toolConnections.find(
+        (connection) => connection.tool === tool
+      )?.status === "needs_connection"
+  );
+  const blockers = [
+    ...priorities
     .filter(({ issue }) => issue.blocked)
-    .map(({ issue }) => `${issue.key}: ${issue.summary}`);
+      .map(({ issue }) => `${issue.key}: ${issue.summary}`),
+    ...disconnectedTools.map(
+      (tool) => `Connect ${tool} in ChatGPT or use manual capture.`
+    )
+  ];
   const actionItems = [
     ...priorities
       .filter(({ issue }) => issue.mentionsCurrentUser)
       .map(({ issue }) => `Respond on ${issue.key}: ${issue.summary}`),
     ...input.mail.slice(0, 3).map((message) => `Review email from ${message.sender}: ${message.subject}`),
-    ...input.teams.slice(0, 2).map((message) => `Follow up with ${message.author}: ${message.content.slice(0, 90)}`)
+    ...input.teams
+      .slice(0, 2)
+      .map(
+        (message) =>
+          `Follow up with ${message.author}: ${message.content.slice(0, 90)}`
+      ),
+    `Submit time ${input.configuration.submissionTiming.toLowerCase()}.`,
+    ...(input.configuration.approvalRequired
+      ? ["Keep the timesheet in draft until manager approval."]
+      : [])
   ];
 
   return {
@@ -55,6 +75,16 @@ export function createDailyRundown(input: DailyInputs): DailyRundown {
     schedule,
     timesheet: generateTimesheet(schedule, input.configuration)
   };
+}
+
+function selectedTools(
+  configuration: TimesheetConfiguration
+): TimesheetConfiguration["toolConnections"][number]["tool"][] {
+  return [
+    ...configuration.workTools,
+    ...configuration.calendarTools,
+    ...configuration.communicationTools
+  ];
 }
 
 export function normalizeMeetingsToDay(

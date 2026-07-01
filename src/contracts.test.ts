@@ -29,4 +29,17 @@ describe("timesheet onboarding configuration", () => {
       })
     ).toThrow("Name the timesheet system.");
   });
+
+  it("provides a complete onboarding workflow by default", () => {
+    const configuration = TimesheetConfigurationSchema.parse({});
+
+    expect(configuration.toolConnections).toContainEqual({
+      tool: "jira",
+      status: "needs_connection"
+    });
+    expect(configuration.timeTrackingBasis).toBe("fixed_day");
+    expect(configuration.entryCadence).toBe("daily");
+    expect(configuration.workflow).toBe("plan_and_reconcile");
+    expect(configuration.automationPreference).toBe("daily_prompt");
+  });
 });

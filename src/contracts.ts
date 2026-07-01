@@ -12,14 +12,21 @@ export const WorkToolSchema = z.enum([
   "trello",
   "github",
   "notion",
-  "other"
+  "hubspot",
+  "confluence",
+  "google_drive",
+  "figma",
+  "supabase",
+  "vercel",
+  "xcode",
+  "other_work"
 ]);
 
 export const CalendarToolSchema = z.enum([
   "outlook",
   "google_calendar",
   "apple_calendar",
-  "other"
+  "other_calendar"
 ]);
 
 export const CommunicationToolSchema = z.enum([
@@ -27,8 +34,19 @@ export const CommunicationToolSchema = z.enum([
   "slack",
   "outlook_mail",
   "gmail",
-  "other"
+  "other_communication"
 ]);
+
+export const ConnectedToolSchema = z.union([
+  WorkToolSchema,
+  CalendarToolSchema,
+  CommunicationToolSchema
+]);
+
+export const ToolConnectionSchema = z.object({
+  tool: ConnectedToolSchema,
+  status: z.enum(["connected", "needs_connection", "manual"])
+});
 
 export const TimesheetSystemSchema = z.enum([
   "manual",
@@ -72,8 +90,39 @@ export const TimesheetConfigurationSchema = z
     communicationTools: z
       .array(CommunicationToolSchema)
       .default(["teams", "outlook_mail"]),
+    toolConnections: z
+      .array(ToolConnectionSchema)
+      .default([
+        { tool: "jira", status: "needs_connection" },
+        { tool: "outlook", status: "needs_connection" },
+        { tool: "teams", status: "needs_connection" },
+        { tool: "outlook_mail", status: "needs_connection" }
+      ]),
     timesheetSystem: TimesheetSystemSchema.default("manual"),
     timesheetSystemOther: z.string().trim().max(100).default(""),
+    timeTrackingBasis: z
+      .enum(["fixed_day", "actual_time", "billable_split", "project_budget"])
+      .default("fixed_day"),
+    entryCadence: z.enum(["daily", "weekly", "per_task"]).default("daily"),
+    approvalRequired: z.boolean().default(false),
+    submissionTiming: z.string().trim().max(100).default("End of each workday"),
+    descriptionStyle: z
+      .enum(["concise", "detailed", "company_template"])
+      .default("concise"),
+    workflow: z
+      .enum([
+        "morning_plan",
+        "end_of_day_reconcile",
+        "plan_and_reconcile",
+        "weekly_summary"
+      ])
+      .default("plan_and_reconcile"),
+    automationPreference: z
+      .enum(["manual", "daily_prompt", "scheduled"])
+      .default("daily_prompt"),
+    overtimePolicy: z
+      .enum(["cap_at_target", "include_actual", "flag_for_review"])
+      .default("flag_for_review"),
     roundingMinutes: z
       .union([
         z.literal(1),
@@ -308,3 +357,4 @@ export type TimesheetConfiguration = z.infer<
 >;
 export type PrefixMapping = z.infer<typeof PrefixMappingSchema>;
 export type AppPayload = z.infer<typeof AppPayloadSchema>;
+export type ConnectedTool = z.infer<typeof ConnectedToolSchema>;

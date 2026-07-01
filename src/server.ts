@@ -1,10 +1,10 @@
 import {
-  RESOURCE_MIME_TYPE,
   registerAppResource,
   registerAppTool
 } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createUIResource } from "@mcp-ui/server";
 import cors from "cors";
 import express from "express";
 import fs from "node:fs";
@@ -21,11 +21,44 @@ import {
 } from "./contracts.js";
 import { planExplicitWorkday } from "./plan-workday.js";
 
-const SERVER_VERSION = "0.2.0";
-const WIDGET_URI = "ui://technotracker/workday.html";
+const SERVER_VERSION = "0.3.0";
+const WIDGET_URI = "ui://technotracker/workday.html" as const;
+const APPS_TEMPLATE_URI = "ui://technotracker/apps-sdk/workday.html" as const;
 const widgetPath = path.resolve(process.cwd(), "dist", "widget", "index.html");
 
 export function createPlannerMcpServer(): McpServer {
+  const widgetHtml = readWidgetHtml();
+  const mcpUiResource = createUIResource({
+    uri: WIDGET_URI,
+    encoding: "text",
+    content: { type: "rawHtml", htmlString: widgetHtml },
+    metadata: {
+      title: "TechnoTracker workday",
+      description:
+        "Interactive work-tool onboarding, company time policy, workflow preferences, and a balanced workday plan."
+    }
+  });
+  const appsSdkTemplate = createUIResource({
+    uri: APPS_TEMPLATE_URI,
+    encoding: "text",
+    content: { type: "rawHtml", htmlString: widgetHtml },
+    adapters: {
+      appsSdk: {
+        enabled: true,
+        config: { intentHandling: "prompt" }
+      }
+    },
+    metadata: {
+      "openai/widgetDescription":
+        "Configure work apps and company time policy, then review a deterministic schedule and balanced timesheet.",
+      "openai/widgetPrefersBorder": true,
+      "openai/widgetCSP": {
+        connect_domains: [],
+        resource_domains: []
+      }
+    }
+  });
+
   const server = new McpServer({
     name: "technotracker",
     version: SERVER_VERSION
@@ -50,7 +83,11 @@ export function createPlannerMcpServer(): McpServer {
         openWorldHint: false
       },
       _meta: {
-        ui: { resourceUri: WIDGET_URI }
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": APPS_TEMPLATE_URI,
+        "openai/toolInvocation/invoking": "Opening TechnoTracker setup…",
+        "openai/toolInvocation/invoked": "TechnoTracker setup ready",
+        "openai/widgetAccessible": true
       }
     },
     async ({ existingConfiguration }) => {
@@ -63,7 +100,8 @@ export function createPlannerMcpServer(): McpServer {
             type: "text" as const,
             text:
               "Use the embedded onboarding form to describe your work tools and company timesheet rules. Do not enter passwords, API keys, or access tokens."
-          }
+          },
+          mcpUiResource
         ],
         structuredContent: {
           view: "onboarding" as const,
@@ -128,7 +166,7 @@ export function createPlannerMcpServer(): McpServer {
           .array(JiraIssueSchema)
           .default([])
           .describe(
-            "Normalized tasks or tickets selected from the user's approved Jira, Azure DevOps, Linear, Asana, ClickUp, Monday, Trello, GitHub, or Notion app."
+            "Normalized tasks or work items selected from the user's approved project, source-control, CRM, knowledge, design, data, deployment, or development apps."
           ),
         meetings: z
           .array(MeetingSchema)
@@ -152,7 +190,11 @@ export function createPlannerMcpServer(): McpServer {
         openWorldHint: false
       },
       _meta: {
-        ui: { resourceUri: WIDGET_URI }
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": APPS_TEMPLATE_URI,
+        "openai/toolInvocation/invoking": "Building your workday…",
+        "openai/toolInvocation/invoked": "Workday plan ready",
+        "openai/widgetAccessible": true
       }
     },
     async ({
@@ -190,7 +232,8 @@ export function createPlannerMcpServer(): McpServer {
             {
               type: "text" as const,
               text: `${rundown.summary} The embedded planner shows the schedule and a balanced ${rundown.timesheet.totalMinutes / 60}-hour timesheet for ${validatedConfiguration.timesheetSystem}.`
-            }
+            },
+            mcpUiResource
           ],
           structuredContent: {
             view: "plan" as const,
@@ -211,30 +254,27 @@ export function createPlannerMcpServer(): McpServer {
 
   registerAppResource(
     server,
-    "TechnoTracker workday",
+    "TechnoTracker MCP-UI workday",
     WIDGET_URI,
     {
-      mimeType: RESOURCE_MIME_TYPE,
+      mimeType: mcpUiResource.resource.mimeType,
       description:
-        "Interactive onboarding and a compact schedule, priorities, blockers, action items, and balanced timesheet.",
-      _meta: {
-        ui: {
-          prefersBorder: true,
-          csp: {
-            connectDomains: [],
-            resourceDomains: []
-          }
-        }
-      }
+        "Portable MCP-UI resource for onboarding and the workday planner."
     },
     async () => ({
-      contents: [
-        {
-          uri: WIDGET_URI,
-          mimeType: RESOURCE_MIME_TYPE,
-          text: readWidgetHtml()
-        }
-      ]
+      contents: [mcpUiResource.resource]
+    })
+  );
+
+  server.registerResource(
+    "TechnoTracker Apps SDK template",
+    APPS_TEMPLATE_URI,
+    {
+      mimeType: appsSdkTemplate.resource.mimeType,
+      description: "ChatGPT Apps SDK template generated by @mcp-ui/server."
+    },
+    async () => ({
+      contents: [appsSdkTemplate.resource]
     })
   );
 

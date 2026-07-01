@@ -35,7 +35,7 @@ export function PlannerWidget() {
       : null
   );
   const { app, error } = useApp({
-    appInfo: { name: "TechnoTracker", version: "0.2.0" },
+    appInfo: { name: "TechnoTracker", version: "0.3.0" },
     capabilities: {},
     onAppCreated: (createdApp: McpApp) => {
       createdApp.ontoolresult = (result) => {

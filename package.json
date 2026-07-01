@@ -1,7 +1,7 @@
 {
   "name": "technotracker",
-  "version": "0.2.0",
-  "description": "An OpenAI MCP workday planner with interactive onboarding and configurable timesheets.",
+  "version": "0.3.0",
+  "description": "A dual-host MCP-UI workday planner with app onboarding and configurable timesheets.",
   "private": true,
   "type": "module",
   "main": "./dist/server/server.js",
@@ -31,6 +31,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
