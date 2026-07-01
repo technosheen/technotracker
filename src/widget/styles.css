@@ -820,13 +820,212 @@ ol {
   background: transparent;
 }
 
+.plan-actions,
+.reconciliation-toolbar,
+.reconciliation-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid rgba(24, 32, 24, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.plan-actions > div:first-child,
+.reconciliation-toolbar > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.plan-actions strong,
+.reconciliation-toolbar strong {
+  font-size: 13px;
+}
+
+.plan-actions span,
+.reconciliation-toolbar span,
+.reconciliation-footer p,
+.action-status {
+  color: #687064;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.action-status {
+  margin: -14px 0 22px;
+}
+
+.reconciliation-shell {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.reconciliation-header {
+  margin-bottom: 20px;
+}
+
+.actual-entry-list {
+  display: grid;
+  gap: 10px;
+}
+
+.actual-entry {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid rgba(24, 32, 24, 0.14);
+  border-left: 4px solid #71806b;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.actual-entry.suggested {
+  border-left-color: #c28d29;
+  background: #fffaf0;
+}
+
+.actual-entry-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.actual-entry-heading > div {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.actual-entry-heading input,
+.entry-notes input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #182018;
+  font-weight: 700;
+}
+
+.actual-entry-heading input:focus,
+.entry-notes input:focus {
+  border-color: #9aa390;
+  outline: none;
+  background: #fff;
+}
+
+.entry-kind {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #e4e8df;
+  color: #596253;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.entry-kind.work,
+.entry-kind.unplanned {
+  background: #e5efbd;
+  color: #46541d;
+}
+
+.confirm-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  color: #596253;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.actual-fields {
+  display: grid;
+  grid-template-columns: 1fr 0.7fr 0.8fr 1fr;
+  gap: 10px;
+}
+
+.actual-entry small {
+  color: #7a8276;
+  font-size: 10px;
+}
+
+.form-error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #f5dfd8;
+  color: #7f2d23;
+  font-size: 12px;
+}
+
+.reconciliation-footer {
+  margin: 20px 0 0;
+}
+
+.reconciliation-footer p {
+  max-width: 600px;
+  margin: 0;
+}
+
+.reconciliation-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.reconciliation-results > section {
+  padding: 16px;
+  border: 1px solid rgba(24, 32, 24, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.result-list {
+  display: grid;
+  gap: 8px;
+}
+
+.result-list li {
+  color: #555f51;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.warning-panel {
+  background: #fff5dc !important;
+}
+
+.reconciliation-results .reconciled-timesheet {
+  background: #1f291f;
+}
+
 .error-copy {
   color: #923327 !important;
 }
 
 @media (max-width: 620px) {
   .planner-shell,
-  .onboarding-shell {
+  .onboarding-shell,
+  .reconciliation-shell {
     padding: 18px;
   }
 
@@ -841,6 +1040,27 @@ ol {
   .content-grid {
     grid-template-columns: 1fr;
     gap: 28px;
+  }
+
+  .plan-actions,
+  .reconciliation-toolbar,
+  .reconciliation-footer,
+  .actual-entry-heading {
+    display: grid;
+  }
+
+  .toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .actual-entry-heading > div,
+  .actual-fields,
+  .reconciliation-results {
+    grid-template-columns: 1fr;
+  }
+
+  .confirm-control {
+    justify-self: start;
   }
 
   .onboarding-header {
@@ -899,7 +1119,8 @@ ol {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .planner-shell {
+  .planner-shell,
+  .reconciliation-shell {
     animation: enter 220ms ease-out both;
   }
 

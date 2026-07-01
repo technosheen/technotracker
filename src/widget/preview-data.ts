@@ -1,4 +1,8 @@
-import type { DailyRundown } from "../contracts.js";
+import {
+  DEFAULT_TIMESHEET_CONFIGURATION,
+  type DailyRundown
+} from "../contracts.js";
+import { prepareWorkdayReconciliation } from "../planner/reconciliation.js";
 
 export const previewRundown: DailyRundown = {
   date: "2026-06-30",
@@ -136,3 +140,20 @@ export const previewRundown: DailyRundown = {
     totalMinutes: 480
   }
 };
+
+export const previewReconciliationDraft = prepareWorkdayReconciliation({
+  originalRundown: previewRundown,
+  configuration: DEFAULT_TIMESHEET_CONFIGURATION,
+  refreshedContext: {
+    meetings: [
+      {
+        id: "meeting-1",
+        title: "Daily stand-up",
+        start: "2026-06-30T13:00:00.000Z",
+        end: "2026-06-30T14:00:00.000Z",
+        showAs: "busy"
+      }
+    ],
+    workItems: previewRundown.priorities.map((priority) => priority.issue)
+  }
+});

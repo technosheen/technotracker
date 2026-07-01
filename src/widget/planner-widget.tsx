@@ -7,10 +7,15 @@ import {
   type AppPayload,
   type DailyRundown,
   type ScheduleItem,
+  type TimesheetConfiguration,
   type TimesheetEntry
 } from "../contracts.js";
 import { OnboardingWidget } from "./onboarding-widget.js";
-import { previewRundown } from "./preview-data.js";
+import {
+  previewReconciliationDraft,
+  previewRundown
+} from "./preview-data.js";
+import { ReconciliationWidget } from "./reconciliation-widget.js";
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
@@ -28,6 +33,12 @@ export function PlannerWidget() {
             configuration: DEFAULT_TIMESHEET_CONFIGURATION,
             rundown: previewRundown
           }
+        : previewMode === "reconcile"
+          ? {
+              view: "reconciliation",
+              phase: "draft",
+              draft: previewReconciliationDraft
+            }
         : {
             view: "onboarding",
             configuration: DEFAULT_TIMESHEET_CONFIGURATION
@@ -35,7 +46,7 @@ export function PlannerWidget() {
       : null
   );
   const { app, error } = useApp({
-    appInfo: { name: "TechnoTracker", version: "0.3.0" },
+    appInfo: { name: "TechnoTracker", version: "0.4.0" },
     capabilities: {},
     onAppCreated: (createdApp: McpApp) => {
       createdApp.ontoolresult = (result) => {
@@ -62,10 +73,49 @@ export function PlannerWidget() {
     );
   }
 
-  return <WorkdayPlan rundown={payload.rundown} />;
+  if (payload.view === "reconciliation") {
+    return (
+      <ReconciliationWidget
+        app={app}
+        draft={payload.draft}
+        {...(payload.phase === "final" ? { result: payload.result } : {})}
+        preview={preview}
+        onPayload={(nextPayload) => {
+          const parsed = AppPayloadSchema.safeParse(nextPayload);
+          if (parsed.success) setPayload(parsed.data);
+        }}
+      />
+    );
+  }
+
+  return (
+    <WorkdayPlan
+      app={app}
+      configuration={payload.configuration}
+      rundown={payload.rundown}
+      preview={preview}
+      onPayload={(nextPayload) => {
+        const parsed = AppPayloadSchema.safeParse(nextPayload);
+        if (parsed.success) setPayload(parsed.data);
+      }}
+    />
+  );
 }
 
-function WorkdayPlan({ rundown }: { rundown: DailyRundown }) {
+function WorkdayPlan({
+  app,
+  configuration,
+  rundown,
+  preview,
+  onPayload
+}: {
+  app: McpApp | null;
+  configuration: TimesheetConfiguration;
+  rundown: DailyRundown;
+  preview: boolean;
+  onPayload: (payload: unknown) => void;
+}) {
+  const [actionStatus, setActionStatus] = useState("");
   const focusMinutes = useMemo(
     () =>
       rundown.schedule.reduce(
@@ -77,6 +127,50 @@ function WorkdayPlan({ rundown }: { rundown: DailyRundown }) {
       ),
     [rundown.schedule]
   );
+
+  async function reconcileDay() {
+    setActionStatus("Preparing reconciliation…");
+    if (preview || !app) {
+      onPayload({
+        view: "reconciliation",
+        phase: "draft",
+        draft: previewReconciliationDraft
+      });
+      return;
+    }
+    try {
+      const response = await app.callServerTool({
+        name: "prepare_workday_reconciliation",
+        arguments: {
+          originalRundown: rundown,
+          configuration,
+          refreshedContext: { meetings: [], workItems: [], suggestions: [] }
+        }
+      });
+      onPayload(response.structuredContent);
+    } catch (error) {
+      setActionStatus(
+        error instanceof Error ? error.message : "Could not start reconciliation."
+      );
+    }
+  }
+
+  async function remindMe() {
+    if (!app) {
+      setActionStatus("Ask ChatGPT to remind you at the end of your workday.");
+      return;
+    }
+    await app.sendMessage({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: `Remind me at ${configuration.workdayEnd} ${configuration.timeZone} today to reconcile this TechnoTracker plan. When I respond, gather refreshed context from only my approved apps and call prepare_workday_reconciliation.`
+        }
+      ]
+    });
+    setActionStatus("Reminder request sent to ChatGPT.");
+  }
 
   return (
     <main className="planner-shell">
@@ -97,6 +191,24 @@ function WorkdayPlan({ rundown }: { rundown: DailyRundown }) {
         <Metric value={rundown.blockers.length} label="Blockers" tone="danger" />
         <Metric value={formatDuration(focusMinutes)} label="Focus time" />
       </section>
+
+      <section className="plan-actions" aria-label="End-of-day actions">
+        <div>
+          <strong>Close the loop later</strong>
+          <span>
+            Confirm actual work, record deviations, and rebuild the timesheet.
+          </span>
+        </div>
+        <div className="toolbar-actions">
+          <button type="button" className="primary-button" onClick={reconcileDay}>
+            Reconcile day
+          </button>
+          <button type="button" className="secondary-button" onClick={remindMe}>
+            Remind me
+          </button>
+        </div>
+      </section>
+      {actionStatus ? <p className="action-status">{actionStatus}</p> : null}
 
       <div className="content-grid">
         <section>

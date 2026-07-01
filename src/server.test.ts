@@ -1,5 +1,10 @@
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  DEFAULT_TIMESHEET_CONFIGURATION,
+  type DailyRundown
+} from "./contracts.js";
+import { prepareWorkdayReconciliation } from "./planner/reconciliation.js";
 import { createHttpApp } from "./server.js";
 
 describe("Apps SDK MCP server", () => {
@@ -22,7 +27,7 @@ describe("Apps SDK MCP server", () => {
     });
   });
 
-  it("advertises onboarding, app-only validation, and planner tools", async () => {
+  it("advertises onboarding, planner, and reconciliation tools", async () => {
     const response = await callMcp(baseUrl, {
       jsonrpc: "2.0",
       id: 1,
@@ -33,6 +38,8 @@ describe("Apps SDK MCP server", () => {
     expect(response).toContain('"name":"show_technotracker_onboarding"');
     expect(response).toContain('"name":"save_technotracker_configuration"');
     expect(response).toContain('"name":"generate_workday_plan"');
+    expect(response).toContain('"name":"prepare_workday_reconciliation"');
+    expect(response).toContain('"name":"finalize_workday_reconciliation"');
     expect(response).toContain('"readOnlyHint":true');
     expect(response).toContain('"visibility":["app"]');
     expect(response).toContain(
@@ -124,7 +131,96 @@ describe("Apps SDK MCP server", () => {
     expect(response).toContain('"targetHours":8');
     expect(response).toContain('"meetingCode":"INT-58"');
   });
+
+  it("supports model- and widget-driven reconciliation calls", async () => {
+    const originalRundown = reconciliationRundown();
+    const prepared = await callMcp(baseUrl, {
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: {
+        name: "prepare_workday_reconciliation",
+        arguments: {
+          originalRundown,
+          configuration: DEFAULT_TIMESHEET_CONFIGURATION,
+          refreshedContext: {
+            meetings: [],
+            workItems: [],
+            suggestions: []
+          }
+        }
+      }
+    });
+    expect(prepared).toContain('"view":"reconciliation"');
+    expect(prepared).toContain('"phase":"draft"');
+    expect(prepared).toContain('"confirmationState":"suggested"');
+
+    const draft = prepareWorkdayReconciliation({
+      originalRundown,
+      configuration: DEFAULT_TIMESHEET_CONFIGURATION
+    });
+    const finalized = await callMcp(baseUrl, {
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: {
+        name: "finalize_workday_reconciliation",
+        arguments: {
+          draft,
+          entries: draft.entries.map((entry) => ({
+            ...entry,
+            confirmationState: "confirmed"
+          }))
+        }
+      }
+    });
+    expect(finalized).toContain('"phase":"final"');
+    expect(finalized).toContain('"totalMinutes":480');
+    expect(finalized).toContain('"approvalState":"approved"');
+  });
 });
+
+function reconciliationRundown(): DailyRundown {
+  return {
+    date: "2026-06-30",
+    summary: "One work block.",
+    priorities: [],
+    blockers: [],
+    actionItems: [],
+    schedule: [
+      {
+        kind: "work",
+        id: "work-1",
+        issueKey: "HUB-12",
+        title: "Shared module",
+        start: "2026-06-30T13:00:00.000Z",
+        end: "2026-06-30T15:00:00.000Z",
+        showAs: "free",
+        plannerOwned: true,
+        score: 80
+      }
+    ],
+    timesheet: {
+      entries: [
+        {
+          id: "timesheet:work-1",
+          code: "HUB-12",
+          description: "Shared module",
+          minutes: 120,
+          source: "work_item"
+        },
+        {
+          id: "timesheet:balance",
+          code: "INT-58",
+          description: "Internal",
+          minutes: 360,
+          source: "internal"
+        }
+      ],
+      totalMinutes: 480
+    }
+  };
+}
 
 async function callMcp(baseUrl: string, request: object): Promise<string> {
   const response = await fetch(`${baseUrl}/mcp`, {

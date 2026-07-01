@@ -1,7 +1,8 @@
 # TechnoTracker
 
 An MCP-UI and OpenAI Apps SDK application that turns explicitly selected work
-context into a deterministic schedule and balanced timesheet. Its onboarding
+context into a deterministic schedule, confirmed actuals, and a reconciled
+timesheet. Its onboarding
 asks about the user's job, approved work tools and connection status, company
 time policy, and preferred workflow before rendering the workday plan.
 
@@ -12,8 +13,8 @@ src/
   server.ts          Streamable HTTP MCP server and dual-host UI resources
   contracts.ts       Zod schemas and domain types
   plan-workday.ts    Explicit-input planning use case
-  planner/           Priority, scheduling, overlap, and timesheet logic
-  widget/            React onboarding and planner UI bundled as one resource
+  planner/           Priority, scheduling, timesheet, and reconciliation logic
+  widget/            React onboarding, planner, and reconciliation UI
 ```
 
 There is no standalone API, dashboard, database, connector adapter, or
@@ -29,11 +30,17 @@ Microsoft permissions.
   is app-only, idempotent, and does not write to an external system.
 - `generate_workday_plan` accepts normalized work items, meetings, messages,
   and the validated configuration, then renders the plan.
+- `prepare_workday_reconciliation` turns the original rundown and refreshed
+  context into app-derived actual-work suggestions that require confirmation.
+- `finalize_workday_reconciliation` is an idempotent pure transform that
+  returns deviations, warnings, carryover, approval state, and the reconciled
+  timesheet. It performs no submission or external write.
 
-The widget keeps a versioned, non-sensitive preference snapshot in ChatGPT
-widget state and browser storage, and sends a concise configuration summary to
-the current conversation. Durable cross-device profiles would require an
-authenticated storage service and are intentionally out of scope.
+The widget keeps versioned, non-sensitive preferences and dated reconciliation
+drafts in ChatGPT widget state and browser storage. Drafts expire after 14 days.
+It sends concise context to the conversation at prepare/finalize boundaries.
+Durable cross-device profiles would require an authenticated storage service
+and are intentionally out of scope.
 
 The same bundled React UI is published in two forms:
 
@@ -62,7 +69,16 @@ The same bundled React UI is published in two forms:
 - Meetings are immutable busy intervals.
 - Generated work blocks are free and never overlap meetings.
 - Work blocks receive a 15-minute meeting buffer.
-- Every generated timesheet exactly matches the configured daily target.
+- Planned timesheets exactly match the configured daily target.
+- Reconciliation supports completed, partial, skipped, replaced, and unplanned
+  work with editable duration, issue key, timesheet code, and notes.
+- Fixed-day, project-budget, and billable-split policies balance short days.
+  Actual-time policies never add balancing time.
+- Overtime can be capped deterministically, included as actual, or preserved
+  with a review requirement.
+- Partial, skipped, and replaced planned work is returned as carryover.
+- **Remind me** sends a follow-up request to ChatGPT; TechnoTracker does not
+  perform background scans.
 - MCP tools perform no external writes.
 
 ## Local development
@@ -79,6 +95,7 @@ The MCP endpoint is `http://localhost:8000/mcp`.
 
 - Onboarding preview: `http://localhost:8000/preview?preview=1`
 - Plan preview: `http://localhost:8000/preview?preview=plan`
+- Reconciliation preview: `http://localhost:8000/preview?preview=reconcile`
 
 ## Connect to ChatGPT
 
@@ -93,6 +110,8 @@ The MCP endpoint is `http://localhost:8000/mcp`.
 7. Answer the company time-policy and workflow questions.
 8. Choose **Build today's plan**. ChatGPT gathers relevant context through
    approved apps and calls `generate_workday_plan`.
+9. At the end of the day, choose **Reconcile day** or ask ChatGPT to update the
+   reconciliation in chat. Confirm every suggestion before finalizing.
 
 The planner app does not inherit credentials from those apps and requires no
 OpenAI API key. It receives only tool arguments selected for the current call.
@@ -106,9 +125,10 @@ npm run build
 npm audit --omit=dev
 ```
 
-Tests cover default and custom prefix rules, onboarding tool metadata, priority
-scoring, overlap detection, meeting buffers, boundary clipping, free/busy
-behavior, configurable rounding, and exact target-hour balancing.
+Tests cover default and custom prefix rules, onboarding/tool metadata, priority
+scoring, overlap detection, meeting buffers, free/busy behavior, reconciliation
+confirmation, carryover, rounding, meeting exclusion, target balancing,
+overtime policies, draft expiry, and idempotent finalization.
 
 Implementation follows the
 [MCP-UI Apps SDK guide](https://mcpui.dev/guide/apps-sdk),

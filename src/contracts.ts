@@ -246,6 +246,99 @@ export const TimesheetEntrySchema = z.object({
   source: z.enum(["meeting", "work_item", "jira", "internal"])
 });
 
+export const ReconciliationStatusSchema = z.enum([
+  "completed",
+  "partial",
+  "skipped",
+  "replaced",
+  "unplanned"
+]);
+
+export const ReconciliationSourceReferenceSchema = z.object({
+  type: z.enum([
+    "calendar",
+    "work_item",
+    "mail",
+    "teams",
+    "user",
+    "planner"
+  ]),
+  id: z.string().trim().min(1).max(200),
+  label: z.string().trim().max(200).optional(),
+  url: z.string().url().optional()
+});
+
+export const ActualEntrySchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  plannedItemId: z.string().trim().min(1).max(200).nullable(),
+  category: z.enum(["meeting", "work", "internal", "unplanned"]),
+  title: z.string().trim().min(1).max(300),
+  plannedIssueKey: z.string().trim().min(1).max(80).nullable().default(null),
+  issueKey: z.string().trim().min(1).max(80).nullable().default(null),
+  plannedMinutes: z.number().int().nonnegative(),
+  actualMinutes: z.number().int().nonnegative(),
+  completionStatus: ReconciliationStatusSchema,
+  notes: z.string().trim().max(1000).default(""),
+  sourceReferences: z
+    .array(ReconciliationSourceReferenceSchema)
+    .max(20)
+    .default([]),
+  confirmationState: z.enum(["confirmed", "suggested"]),
+  timesheetCode: z.string().trim().min(1).max(60)
+});
+
+export const ReconciliationSuggestionSchema = ActualEntrySchema.pick({
+  plannedItemId: true,
+  category: true,
+  title: true,
+  issueKey: true,
+  actualMinutes: true,
+  completionStatus: true,
+  notes: true,
+  sourceReferences: true,
+  timesheetCode: true
+})
+  .partial({
+    plannedItemId: true,
+    issueKey: true,
+    notes: true,
+    sourceReferences: true,
+    timesheetCode: true
+  })
+  .extend({
+    id: z.string().trim().min(1).max(200)
+  });
+
+export const ReconciliationChangeSchema = z.object({
+  entryId: z.string(),
+  type: z.enum([
+    "duration_changed",
+    "status_changed",
+    "code_changed",
+    "work_replaced",
+    "unplanned_work",
+    "excluded",
+    "trimmed"
+  ]),
+  summary: z.string()
+});
+
+export const CarryoverWorkSchema = z.object({
+  entryId: z.string(),
+  plannedItemId: z.string().nullable(),
+  issueKey: z.string().nullable(),
+  title: z.string(),
+  remainingMinutes: z.number().int().positive(),
+  reason: z.enum(["partial", "skipped", "replaced"])
+});
+
+export const ReconciledTimesheetSchema = z.object({
+  entries: z.array(TimesheetEntrySchema),
+  totalMinutes: z.number().int().nonnegative(),
+  targetMinutes: z.number().int().positive(),
+  trimmedMinutes: z.number().int().nonnegative()
+});
+
 export const DailyRundownSchema = z.object({
   date: z.string().date(),
   summary: z.string(),
@@ -276,9 +369,49 @@ export const PlanPayloadSchema = z.object({
   rundown: DailyRundownSchema
 });
 
-export const AppPayloadSchema = z.discriminatedUnion("view", [
+export const ReconciliationDraftSchema = z.object({
+  version: z.literal(1),
+  date: z.string().date(),
+  originalRundown: DailyRundownSchema,
+  configuration: TimesheetConfigurationSchema,
+  entries: z.array(ActualEntrySchema),
+  preparedAt: z.string().datetime()
+});
+
+export const ReconciliationResultSchema = z.object({
+  version: z.literal(1),
+  date: z.string().date(),
+  entries: z.array(ActualEntrySchema),
+  changes: z.array(ReconciliationChangeSchema),
+  carryover: z.array(CarryoverWorkSchema),
+  warnings: z.array(z.string()),
+  approvalState: z.enum([
+    "approved",
+    "requires_confirmation",
+    "requires_review"
+  ]),
+  timesheet: ReconciledTimesheetSchema,
+  finalizedAt: z.string().datetime()
+});
+
+export const ReconciliationPayloadSchema = z.discriminatedUnion("phase", [
+  z.object({
+    view: z.literal("reconciliation"),
+    phase: z.literal("draft"),
+    draft: ReconciliationDraftSchema
+  }),
+  z.object({
+    view: z.literal("reconciliation"),
+    phase: z.literal("final"),
+    draft: ReconciliationDraftSchema,
+    result: ReconciliationResultSchema
+  })
+]);
+
+export const AppPayloadSchema = z.union([
   OnboardingPayloadSchema,
-  PlanPayloadSchema
+  PlanPayloadSchema,
+  ReconciliationPayloadSchema
 ]);
 
 export const DailyRundownRequestSchema = z.object({
@@ -346,6 +479,13 @@ export type Meeting = z.infer<typeof MeetingSchema>;
 export type WorkBlock = z.infer<typeof WorkBlockSchema>;
 export type ScheduleItem = z.infer<typeof ScheduleItemSchema>;
 export type TimesheetEntry = z.infer<typeof TimesheetEntrySchema>;
+export type ActualEntry = z.infer<typeof ActualEntrySchema>;
+export type ReconciliationSuggestion = z.infer<
+  typeof ReconciliationSuggestionSchema
+>;
+export type ReconciliationDraft = z.infer<typeof ReconciliationDraftSchema>;
+export type ReconciliationResult = z.infer<typeof ReconciliationResultSchema>;
+export type ReconciledTimesheet = z.infer<typeof ReconciledTimesheetSchema>;
 export type DailyRundown = z.infer<typeof DailyRundownSchema>;
 export type CalendarSyncResponse = z.infer<typeof CalendarSyncResponseSchema>;
 export type MicrosoftAuthStatus = z.infer<typeof MicrosoftAuthStatusSchema>;

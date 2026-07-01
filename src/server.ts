@@ -12,16 +12,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import {
+  ActualEntrySchema,
   DEFAULT_TIMESHEET_CONFIGURATION,
+  DailyRundownSchema,
   JiraIssueSchema,
   MailMessageSchema,
   MeetingSchema,
+  ReconciliationDraftSchema,
+  ReconciliationSuggestionSchema,
   TeamsMessageSchema,
   TimesheetConfigurationSchema
 } from "./contracts.js";
 import { planExplicitWorkday } from "./plan-workday.js";
+import {
+  finalizeWorkdayReconciliation,
+  prepareWorkdayReconciliation
+} from "./planner/reconciliation.js";
 
-const SERVER_VERSION = "0.3.0";
+const SERVER_VERSION = "0.4.0";
 const WIDGET_URI = "ui://technotracker/workday.html" as const;
 const APPS_TEMPLATE_URI = "ui://technotracker/apps-sdk/workday.html" as const;
 const widgetPath = path.resolve(process.cwd(), "dist", "widget", "index.html");
@@ -35,7 +43,7 @@ export function createPlannerMcpServer(): McpServer {
     metadata: {
       title: "TechnoTracker workday",
       description:
-        "Interactive work-tool onboarding, company time policy, workflow preferences, and a balanced workday plan."
+        "Interactive work-tool onboarding, company time policy, a balanced workday plan, and end-of-day reconciliation."
     }
   });
   const appsSdkTemplate = createUIResource({
@@ -50,7 +58,7 @@ export function createPlannerMcpServer(): McpServer {
     },
     metadata: {
       "openai/widgetDescription":
-        "Configure work apps and company time policy, then review a deterministic schedule and balanced timesheet.",
+        "Configure work apps and company time policy, review a deterministic schedule, and confirm actual work before finalizing a timesheet.",
       "openai/widgetPrefersBorder": true,
       "openai/widgetCSP": {
         connect_domains: [],
@@ -252,6 +260,115 @@ export function createPlannerMcpServer(): McpServer {
     }
   );
 
+  registerAppTool(
+    server,
+    "prepare_workday_reconciliation",
+    {
+      title: "Prepare workday reconciliation",
+      description:
+        "Use this when the user wants to reconcile a generated workday plan. Pass the original rundown plus refreshed context gathered from only the user's approved apps. It suggests actual work for explicit confirmation and performs no external writes.",
+      inputSchema: {
+        originalRundown: DailyRundownSchema,
+        configuration: TimesheetConfigurationSchema,
+        refreshedContext: z
+          .object({
+            meetings: z.array(MeetingSchema).default([]),
+            workItems: z.array(JiraIssueSchema).default([]),
+            suggestions: z.array(ReconciliationSuggestionSchema).default([])
+          })
+          .default({ meetings: [], workItems: [], suggestions: [] })
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      },
+      _meta: {
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": APPS_TEMPLATE_URI,
+        "openai/toolInvocation/invoking": "Preparing actual work…",
+        "openai/toolInvocation/invoked": "Reconciliation ready",
+        "openai/widgetAccessible": true
+      }
+    },
+    async ({ originalRundown, configuration, refreshedContext }) => {
+      try {
+        const draft = prepareWorkdayReconciliation({
+          originalRundown,
+          configuration,
+          refreshedContext
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                "Review every suggested actual, adjust durations, status, issue keys, and timesheet codes, then explicitly confirm each suggestion before finalizing."
+            },
+            mcpUiResource
+          ],
+          structuredContent: {
+            view: "reconciliation" as const,
+            phase: "draft" as const,
+            draft
+          }
+        };
+      } catch (error) {
+        return reconciliationError(error);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "finalize_workday_reconciliation",
+    {
+      title: "Finalize workday reconciliation",
+      description:
+        "Use this after the user confirms all suggested actual entries, including chat edits such as longer meetings, replaced tickets, and unfinished work moved to tomorrow. It deterministically returns deviations, carryover, warnings, approval state, and a reconciled timesheet without writing to Jira, calendars, or timesheet systems.",
+      inputSchema: {
+        draft: ReconciliationDraftSchema,
+        entries: z.array(ActualEntrySchema)
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      },
+      _meta: {
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": APPS_TEMPLATE_URI,
+        "openai/toolInvocation/invoking": "Reconciling your day…",
+        "openai/toolInvocation/invoked": "Day reconciled",
+        "openai/widgetAccessible": true
+      }
+    },
+    async ({ draft, entries }) => {
+      try {
+        const result = finalizeWorkdayReconciliation({ draft, entries });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Reconciliation complete: ${result.timesheet.totalMinutes} minutes, ${result.carryover.length} carryover item(s), approval ${result.approvalState}.`
+            },
+            mcpUiResource
+          ],
+          structuredContent: {
+            view: "reconciliation" as const,
+            phase: "final" as const,
+            draft,
+            result
+          }
+        };
+      } catch (error) {
+        return reconciliationError(error);
+      }
+    }
+  );
+
   registerAppResource(
     server,
     "TechnoTracker MCP-UI workday",
@@ -259,7 +376,7 @@ export function createPlannerMcpServer(): McpServer {
     {
       mimeType: mcpUiResource.resource.mimeType,
       description:
-        "Portable MCP-UI resource for onboarding and the workday planner."
+        "Portable MCP-UI resource for onboarding, planning, and reconciliation."
     },
     async () => ({
       contents: [mcpUiResource.resource]
@@ -279,6 +396,15 @@ export function createPlannerMcpServer(): McpServer {
   );
 
   return server;
+}
+
+function reconciliationError(error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "The reconciliation request failed.";
+  return {
+    isError: true as const,
+    content: [{ type: "text" as const, text: message }]
+  };
 }
 
 export function createHttpApp() {
