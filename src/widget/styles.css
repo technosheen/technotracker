@@ -571,10 +571,7 @@ ol {
 }
 
 .connection-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 18px;
+  display: grid;
 }
 
 .connection-heading h3,
@@ -594,15 +591,23 @@ ol {
   line-height: 1.45;
 }
 
-.secondary-link {
-  flex: 0 0 auto;
-  padding: 8px 11px;
-  border: 1px solid #cbd1c5;
-  border-radius: 9px;
-  color: #26331d;
+.connection-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: #edf4ca;
+}
+
+.connection-summary strong {
+  font-size: 12px;
+}
+
+.connection-summary span {
+  color: #687064;
   font-size: 11px;
-  font-weight: 750;
-  text-decoration: none;
 }
 
 .connection-list {
@@ -612,33 +617,97 @@ ol {
   border-radius: 12px;
 }
 
-.connection-list li {
+.connection-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1fr) minmax(180px, 0.8fr);
+  grid-template-columns: minmax(120px, 0.55fr) minmax(260px, 1.45fr);
   gap: 14px;
   align-items: center;
-  padding: 9px 11px;
+  padding: 12px;
   border-bottom: 1px solid rgba(24, 32, 24, 0.1);
   background: #f7f8f4;
 }
 
-.connection-list li:last-child {
+.connection-row:last-child {
   border-bottom: 0;
 }
 
-.connection-list span {
+.connection-state {
+  display: grid;
+  gap: 3px;
+}
+
+.connection-state strong {
   font-size: 12px;
   font-weight: 700;
 }
 
-.connection-list select {
-  min-height: 34px;
-  padding: 6px 9px;
+.connection-state span {
+  color: #687064;
+  font-size: 10px;
+}
+
+.connection-row.connected {
+  box-shadow: inset 3px 0 #8ea82f;
+}
+
+.connection-row.needs_connection {
+  box-shadow: inset 3px 0 #c68b32;
+}
+
+.connection-row.manual {
+  box-shadow: inset 3px 0 #8a9285;
+}
+
+.connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.connection-actions button,
+.connect-link,
+.text-link {
+  min-height: 32px;
+  padding: 7px 10px;
   border: 1px solid #cbd1c5;
   border-radius: 8px;
   background: #fff;
   color: #182018;
+  cursor: pointer;
   font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.connect-link {
+  border-color: #26331d;
+  background: #26331d;
+  color: #fff;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: #52631b;
+}
+
+.status-badge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #e5edbb;
+  color: #39451c;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.connection-row.manual .status-badge {
+  background: #e5e7e1;
+  color: #596255;
 }
 
 .switch-row {
@@ -784,17 +853,18 @@ ol {
     padding: 8px;
   }
 
-  .connection-heading {
+  .connection-summary {
     display: grid;
+    gap: 3px;
   }
 
-  .secondary-link {
-    justify-self: start;
-  }
-
-  .connection-list li {
+  .connection-row {
     grid-template-columns: 1fr;
-    gap: 7px;
+    gap: 10px;
+  }
+
+  .connection-actions {
+    justify-content: flex-start;
   }
 
   .stepper button {

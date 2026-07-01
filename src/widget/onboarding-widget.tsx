@@ -89,6 +89,15 @@ export function OnboardingWidget({
     ];
   }
 
+  const selectedToolList = selectedTools();
+  const connectionCounts = selectedToolList.reduce(
+    (counts, tool) => {
+      counts[connectionStatus(tool)] += 1;
+      return counts;
+    },
+    { connected: 0, needs_connection: 0, manual: 0 }
+  );
+
   function connectionStatus(tool: ConnectedTool) {
     return (
       configuration.toolConnections.find((connection) => connection.tool === tool)
@@ -290,40 +299,35 @@ export function OnboardingWidget({
             <div className="connections">
               <div className="connection-heading">
                 <div>
-                  <h3>Connection status</h3>
+                  <h3>Connect your selected tools</h3>
                   <p>
-                    ChatGPT asks for authorization when it uses an app. Status is
-                    self-reported here because workspace policy controls availability.
+                    Connect in ChatGPT, then return here and mark the tool connected.
+                    If an app is blocked by company policy, choose manual import.
                   </p>
                 </div>
-                <a
-                  href="https://chatgpt.com/apps"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="secondary-link"
-                >
-                  Open ChatGPT Apps
-                </a>
+              </div>
+              <div className="connection-summary" aria-live="polite">
+                <strong>
+                  {connectionCounts.needs_connection === 0
+                    ? "All selected tools are ready"
+                    : `${connectionCounts.needs_connection} ${
+                        connectionCounts.needs_connection === 1 ? "tool needs" : "tools need"
+                      } attention`}
+                </strong>
+                <span>
+                  {connectionCounts.connected} connected · {connectionCounts.manual} manual
+                </span>
               </div>
               <ul className="connection-list">
-                {selectedTools().map((tool) => (
-                  <li key={tool}>
-                    <span>{TOOL_LABELS.get(tool) ?? tool}</span>
-                    <select
-                      aria-label={`${TOOL_LABELS.get(tool) ?? tool} connection`}
-                      value={connectionStatus(tool)}
-                      onChange={(event) =>
-                        setConnectionStatus(
-                          tool,
-                          event.target.value as TimesheetConfiguration["toolConnections"][number]["status"]
-                        )
-                      }
-                    >
-                      <option value="connected">Connected in ChatGPT</option>
-                      <option value="needs_connection">Needs connection</option>
-                      <option value="manual">Manual capture / import</option>
-                    </select>
-                  </li>
+                {selectedToolList.map((tool) => (
+                  <ConnectionRow
+                    key={tool}
+                    label={TOOL_LABELS.get(tool) ?? tool}
+                    status={connectionStatus(tool)}
+                    onStatusChange={(nextStatus) =>
+                      setConnectionStatus(tool, nextStatus)
+                    }
+                  />
                 ))}
               </ul>
             </div>
@@ -698,6 +702,75 @@ function Field({
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function ConnectionRow({
+  label,
+  status,
+  onStatusChange
+}: {
+  label: string;
+  status: TimesheetConfiguration["toolConnections"][number]["status"];
+  onStatusChange: (
+    status: TimesheetConfiguration["toolConnections"][number]["status"]
+  ) => void;
+}) {
+  return (
+    <li className={`connection-row ${status}`}>
+      <div className="connection-state">
+        <strong>{label}</strong>
+        <span>
+          {status === "connected"
+            ? "Ready to use"
+            : status === "manual"
+              ? "You’ll provide the data"
+              : "Connection required"}
+        </span>
+      </div>
+      <div className="connection-actions">
+        {status === "needs_connection" ? (
+          <>
+            <a
+              href="https://chatgpt.com/apps"
+              target="_blank"
+              rel="noreferrer"
+              className="connect-link"
+            >
+              Connect in ChatGPT
+            </a>
+            <button type="button" onClick={() => onStatusChange("connected")}>
+              Already connected
+            </button>
+            <button type="button" onClick={() => onStatusChange("manual")}>
+              Use manual import
+            </button>
+          </>
+        ) : status === "connected" ? (
+          <>
+            <span className="status-badge">Connected</span>
+            <button type="button" onClick={() => onStatusChange("manual")}>
+              Use manual instead
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="status-badge">Manual import</span>
+            <button type="button" onClick={() => onStatusChange("connected")}>
+              Mark connected
+            </button>
+            <a
+              href="https://chatgpt.com/apps"
+              target="_blank"
+              rel="noreferrer"
+              className="text-link"
+            >
+              Connect instead
+            </a>
+          </>
+        )}
+      </div>
+    </li>
   );
 }
 
